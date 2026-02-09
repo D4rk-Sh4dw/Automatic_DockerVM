@@ -1,4 +1,4 @@
-# Automatic_DockerVM / dockervm CLI
+# Automatic_DockerVM / dvm CLI
 
 Ein modernes Python-basiertes CLI-Tool zur Verwaltung Ihrer Docker-VM, das die alten Shell-Skripte ersetzt.
 
@@ -24,11 +24,11 @@ chmod +x setup.sh
 Starten Sie das interaktive Menü:
 
 ```bash
-dockervm
+dvm
 ```
 
 Oder nutzen Sie direkte Befehle:
 
 ```bash
-dockervm commands  # Zeigt eine Übersicht aller Befehle
+dvm commands  # Zeigt eine Übersicht aller Befehle
 ```
