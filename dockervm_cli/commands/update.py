@@ -114,9 +114,9 @@ def configure_unattended():
                 f.write(config_content)
             
             if run_command("sudo mv 20auto-upgrades.tmp /etc/apt/apt.conf.d/20auto-upgrades", desc="Konfiguriere zuverlässige Auto-Upgrades"):
-            # Ensure service is running
-            run_command("sudo systemctl enable --now unattended-upgrades", desc="Starte unattended-upgrades Service")
-            console.print("[bold green]Unattended Upgrades erfolgreich aktiviert![/bold green]")
+                # Ensure service is running
+                run_command("sudo systemctl enable --now unattended-upgrades", desc="Starte unattended-upgrades Service")
+                console.print("[bold green]Unattended Upgrades erfolgreich aktiviert![/bold green]")
         except Exception as e:
             console.print(f"[bold red]Fehler beim Konfigurieren: {e}[/bold red]")
             if os.path.exists("20auto-upgrades.tmp"):
