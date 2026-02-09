@@ -304,11 +304,11 @@ password       {smtp_pass}
     recipient = questionary.text("Empfänger E-Mail:", default=from_addr).ask()
     only_on_error = questionary.confirm("Nur bei Fehlern benachrichtigen?", default=True).ask()
     
-    apt_conf_content = f'Unattended-Upgrade::Mail "{recipient}";\\n'
+    apt_conf_content = f'Unattended-Upgrade::Mail "{recipient}";\n'
     if only_on_error:
-        apt_conf_content += 'Unattended-Upgrade::MailOnlyOnError "true";\\n'
+        apt_conf_content += 'Unattended-Upgrade::MailOnlyOnError "true";\n'
     else:
-        apt_conf_content += 'Unattended-Upgrade::MailOnlyOnError "false";\\n'
+        apt_conf_content += 'Unattended-Upgrade::MailOnlyOnError "false";\n'
         
     try:
         with open("51unattended-upgrades-email.tmp", "w") as f:
