@@ -4,6 +4,10 @@ setup(
     name="dockervm",
     version="0.1.0",
     packages=find_packages(),
+    include_package_data=True,
+    package_data={
+        "dockervm_cli": ["templates/**/*", "templates/**/.*"],
+    },
     install_requires=[
         "typer[all]",
         "rich",
