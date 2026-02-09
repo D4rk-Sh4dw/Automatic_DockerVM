@@ -7,7 +7,7 @@ from dockervm_cli.commands import update, install, network
 
 app = typer.Typer(
     name="dockervm",
-    help="DockerVM Management CLI - A modern, centralized tool for managing your Docker VM.",
+    help="DockerVM Management CLI - Ein modernes Tool zur Verwaltung deiner Docker VM.",
     add_completion=False,
     no_args_is_help=True
 )

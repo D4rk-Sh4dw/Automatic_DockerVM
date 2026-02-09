@@ -3,7 +3,7 @@ import typer
 import questionary
 from dockervm_cli.utils import run_command, console, print_header
 
-app = typer.Typer(help="Configure network settings.")
+app = typer.Typer(help="Netzwerkeinstellungen konfigurieren.")
 
 @app.command("ip")
 def configure_static_ip():

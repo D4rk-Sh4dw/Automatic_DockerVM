@@ -2,7 +2,7 @@
 import typer
 from dockervm_cli.utils import run_command, console
 
-app = typer.Typer(help="Manage system and application updates.")
+app = typer.Typer(help="System- und Anwendungs-Updates verwalten.")
 
 @app.command("system")
 def update_system():

@@ -2,7 +2,7 @@
 import typer
 from dockervm_cli.utils import run_command, console
 
-app = typer.Typer(help="Install applications and services.")
+app = typer.Typer(help="Anwendungen und Dienste installieren.")
 
 @app.command("docker")
 def install_docker():
