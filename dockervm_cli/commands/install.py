@@ -109,8 +109,8 @@ def install_lazydocker():
     """
     console.print("[bold blue]Installiere Lazydocker...[/bold blue]")
     
-    # Official install script
-    cmd = "curl https://raw.githubusercontent.com/jesseduffield/lazydocker/master/scripts/install_update_linux.sh | bash"
+    # Official install script - force installation to /usr/local/bin
+    cmd = "export DIR=/usr/local/bin && curl https://raw.githubusercontent.com/jesseduffield/lazydocker/master/scripts/install_update_linux.sh | bash"
     
     if run_command(cmd, desc="Führe Lazydocker Installationsskript aus"):
         console.print("[bold green]Lazydocker erfolgreich installiert![/bold green]")
