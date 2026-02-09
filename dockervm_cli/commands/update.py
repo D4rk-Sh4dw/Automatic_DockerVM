@@ -109,7 +109,7 @@ def configure_unattended():
         # We use a simple non-interactive enablement
         # This creates /etc/apt/apt.conf.d/20auto-upgrades if not present
         # This creates /etc/apt/apt.conf.d/20auto-upgrades if not present
-        config_content = 'APT::Periodic::Update-Package-Lists "1";\\nAPT::Periodic::Unattended-Upgrade "1";\\n'
+        config_content = 'APT::Periodic::Update-Package-Lists "1";\nAPT::Periodic::Unattended-Upgrade "1";\n'
         
         try:
             with open("20auto-upgrades.tmp", "w") as f:
@@ -186,7 +186,7 @@ def configure_unattended():
                 console.print(f"[bold red]Fehlerbeim Abrufen der Pakete: {e}[/bold red]")
         
         if blacklist_regex:
-            blacklist_content = 'Unattended-Upgrade::Package-Blacklist {\\n' + '\\n    '.join(blacklist_regex) + '\\n};\\n'
+            blacklist_content = 'Unattended-Upgrade::Package-Blacklist {\n' + '\n    '.join(blacklist_regex) + '\n};\n'
             
             # Write to a separate file to avoid overwriting default config
             blacklist_file = "/etc/apt/apt.conf.d/51unattended-upgrades-blacklist"
