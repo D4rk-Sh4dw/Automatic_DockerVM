@@ -13,7 +13,7 @@ services:
       DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}"
       REDIS_URL: "redis://redis:6379"
     ports:
-      - "3000:3000"
+      - "3001:3000"
     restart: unless-stopped
     volumes:
       - docmost:/app/data/storage
