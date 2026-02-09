@@ -203,8 +203,6 @@ def configure_unattended():
             else:
                  console.print("[yellow]Keine Pakete für die Blacklist ausgewählt.[/yellow]")
 
-        else:
-            console.print("[bold red]Fehler beim Konfigurieren der Auto-Upgrades.[/bold red]")
     else:
         console.print("[bold red]Fehler beim Installieren von unattended-upgrades.[/bold red]")
 
