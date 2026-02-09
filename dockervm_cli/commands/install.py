@@ -100,3 +100,99 @@ def install_dockhand():
     else:
         console.print("[bold red]Fehler beim Starten von Dockhand.[/bold red]")
         raise typer.Exit(code=1)
+
+
+@app.command("lazydocker")
+def install_lazydocker():
+    """
+    Installiert Lazydocker (Terminal UI für Docker).
+    """
+    console.print("[bold blue]Installiere Lazydocker...[/bold blue]")
+    
+    # Official install script
+    cmd = "curl https://raw.githubusercontent.com/jesseduffield/lazydocker/master/scripts/install_update_linux.sh | bash"
+    
+    if run_command(cmd, desc="Führe Lazydocker Installationsskript aus"):
+        console.print("[bold green]Lazydocker erfolgreich installiert![/bold green]")
+        console.print("Starte es mit dem Befehl: [bold cyan]lazydocker[/bold cyan]")
+    else:
+        console.print("[bold red]Fehler bei der Installation von Lazydocker.[/bold red]")
+        raise typer.Exit(code=1)
+
+
+@app.command("zsh")
+def install_zsh():
+    """
+    Installiert ZSH und optional Oh My Zsh + Plugins.
+    """
+    import questionary
+    import os
+    
+    console.print("[bold blue]Installation von ZSH & Oh My Zsh[/bold blue]")
+    
+    # 1. Install ZSH and dependencies
+    if not run_command("sudo apt update && sudo apt install -y zsh git curl fonts-powerline", desc="Installiere ZSH Basispakete"):
+        raise typer.Exit(code=1)
+        
+    console.print("[green]ZSH installiert.[/green]")
+    
+    # 2. Install Oh My Zsh
+    if questionary.confirm("Möchtest du 'Oh My Zsh' installieren? (Empfohlen)", default=True).ask():
+        # Check if already installed
+        if os.path.exists(os.path.expanduser("~/.oh-my-zsh")):
+             console.print("[yellow]Oh My Zsh ist bereits installiert.[/yellow]")
+        else:
+            # Run install script (unattended to avoid exit, but we want to configure it)
+            # We use --unattended to prevent it from launching zsh immediately and stopping our script
+            cmd = 'sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended'
+            if run_command(cmd, desc="Installiere Oh My Zsh"):
+                console.print("[green]Oh My Zsh installiert![/green]")
+            else:
+                console.print("[red]Fehler bei der Installation von Oh My Zsh.[/red]")
+    
+    # 3. Plugins (Autosuggestions & Syntax Highlighting)
+    if questionary.confirm("Sollen nützliche Plugins (Autosuggestions, Syntax Highlighting) installiert werden?", default=True).ask():
+        zsh_custom = os.path.expanduser("~/.oh-my-zsh/custom")
+        
+        # Autosuggestions
+        if not os.path.exists(f"{zsh_custom}/plugins/zsh-autosuggestions"):
+            run_command(f"git clone https://github.com/zsh-users/zsh-autosuggestions {zsh_custom}/plugins/zsh-autosuggestions", desc="Klone zsh-autosuggestions")
+            
+        # Syntax Highlighting
+        if not os.path.exists(f"{zsh_custom}/plugins/zsh-syntax-highlighting"):
+            run_command(f"git clone https://github.com/zsh-users/zsh-syntax-highlighting.git {zsh_custom}/plugins/zsh-syntax-highlighting", desc="Klone zsh-syntax-highlighting")
+            
+        console.print("\n[bold yellow]Hinweis:[/bold yellow] Um die Plugins zu aktivieren, füge sie in deiner [bold]~/.zshrc[/bold] hinzu:")
+        console.print("plugins=(git zsh-autosuggestions zsh-syntax-highlighting)")
+        
+        # Try to patch .zshrc automatically?
+        if questionary.confirm("Soll ich die Plugins automatisch in die ~/.zshrc eintragen?", default=True).ask():
+            zshrc_path = os.path.expanduser("~/.zshrc")
+            try:
+                with open(zshrc_path, "r") as f:
+                    content = f.read()
+                
+                # Simple replacement for default config
+                if "plugins=(git)" in content:
+                    new_content = content.replace("plugins=(git)", "plugins=(git zsh-autosuggestions zsh-syntax-highlighting)")
+                    with open(zshrc_path, "w") as f:
+                        f.write(new_content)
+                    console.print("[green]Plugins in .zshrc eingetragen![/green]")
+                else:
+                     console.print("[yellow]Konnte 'plugins=(git)' nicht finden. Bitte manuell anpassen.[/yellow]")
+            except Exception as e:
+                console.print(f"[red]Fehler beim Bearbeiten der .zshrc: {e}[/red]")
+
+    # 4. Set Default Shell
+    if questionary.confirm("Möchtest du ZSH als Standard-Shell setzen?", default=True).ask():
+        # chsh requires password usually, run_command might prompt or fail if non-interactive sudo?
+        # chsh -s $(which zsh) usually works for current user.
+        user = os.environ.get("USER")
+        zsh_path = "/usr/bin/zsh" # Standard path
+        
+        console.print("[blue]Setze Standard-Shell... (Passwort ggf. erforderlich)[/blue]")
+        # We try without sudo first for current user
+        if run_command(f"sudo chsh -s {zsh_path} {user}", desc=f"Setze Shell für {user}"):
+            console.print("[bold green]Standard-Shell geändert! Bitte neu anmelden.[/bold green]")
+        else:
+             console.print("[bold red]Konnte Shell nicht ändern. Bitte manuell 'chsh -s $(which zsh)' ausführen.[/bold red]")

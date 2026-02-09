@@ -37,7 +37,9 @@ def list_commands():
     
     # Installation
     table.add_row("dockervm install docker", "Docker Engine & Compose installieren")
-    table.add_row("dockervm install dockhand", "Dockhand installieren (mit Postgres)")
+    table.add_row("dockervm install dockhand", "Dockhand (Portainer Alternative) installieren")
+    table.add_row("dockervm install lazydocker", "Lazydocker (Terminal UI) installieren")
+    table.add_row("dockervm install zsh", "ZSH & Oh My Zsh installieren")
     
     # Network
     table.add_row("dockervm network ip", "Statische IP konfigurieren (Netplan)")
@@ -82,6 +84,8 @@ def main(
                     "Dockhand aktualisieren",
                     "Docker installieren",
                     "Dockhand installieren",
+                    "Lazydocker installieren",
+                    "ZSH (inkl. Oh My Zsh) installieren",
                     "Netzwerk konfigurieren (Statische IP)",
                     "IPVLAN konfigurieren",
                     "CLI aktualisieren",
@@ -103,6 +107,10 @@ def main(
                 install.install_docker()
             elif choice == "Dockhand installieren":
                 install.install_dockhand()
+            elif choice == "Lazydocker installieren":
+                install.install_lazydocker()
+            elif choice == "ZSH (inkl. Oh My Zsh) installieren":
+                install.install_zsh()
             elif choice == "Netzwerk konfigurieren (Statische IP)":
                 network.configure_static_ip()
             elif choice == "IPVLAN konfigurieren":
