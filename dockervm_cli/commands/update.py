@@ -106,12 +106,21 @@ def configure_unattended():
     if run_command("sudo apt install -y unattended-upgrades", desc="Installiere unattended-upgrades"):
         # We use a simple non-interactive enablement
         # This creates /etc/apt/apt.conf.d/20auto-upgrades if not present
-        cmd = 'sudo bash -c "echo -e \"APT::Periodic::Update-Package-Lists \\"1\\";\\nAPT::Periodic::Unattended-Upgrade \\"1\\";\" > /etc/apt/apt.conf.d/20auto-upgrades"'
+        # This creates /etc/apt/apt.conf.d/20auto-upgrades if not present
+        config_content = 'APT::Periodic::Update-Package-Lists "1";\nAPT::Periodic::Unattended-Upgrade "1";\n'
         
-        if run_command(cmd, desc="Konfiguriere zuverlässige Auto-Upgrades"):
-             # Ensure service is running
+        try:
+            with open("20auto-upgrades.tmp", "w") as f:
+                f.write(config_content)
+            
+            if run_command("sudo mv 20auto-upgrades.tmp /etc/apt/apt.conf.d/20auto-upgrades", desc="Konfiguriere zuverlässige Auto-Upgrades"):
+            # Ensure service is running
             run_command("sudo systemctl enable --now unattended-upgrades", desc="Starte unattended-upgrades Service")
             console.print("[bold green]Unattended Upgrades erfolgreich aktiviert![/bold green]")
+        except Exception as e:
+            console.print(f"[bold red]Fehler beim Konfigurieren: {e}[/bold red]")
+            if os.path.exists("20auto-upgrades.tmp"):
+                os.remove("20auto-upgrades.tmp")
             
             # Blacklist Configuration
             console.print("\n[bold yellow]Paket Blacklist Konfiguration[/bold yellow]")
