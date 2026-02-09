@@ -18,10 +18,14 @@ def update_system():
     
     # Apply Blacklist Holds from Unattended-Upgrades Config
     blacklist_file = "/etc/apt/apt.conf.d/51unattended-upgrades-blacklist"
+    console.print(f"[dim]Prüfe Blacklist-Datei: {blacklist_file}[/dim]")
+    
     if os.path.exists(blacklist_file):
         try:
             with open(blacklist_file, "r") as f:
                 content = f.read()
+            
+            console.print(f"[dim]Blacklist-Datei gefunden, Inhalt: {len(content)} Zeichen[/dim]")
             
             # Extract regex patterns (simple parsing)
             # Looks for "package-name"; inside Unattended-Upgrade::Package-Blacklist { ... };
@@ -29,18 +33,22 @@ def update_system():
             matches = re.findall(r'"([^"]+)";', content)
             
             if matches:
-                console.print(f"[blue]Gefundene Blacklist-Muster: {len(matches)}. Setze Hold...[/blue]")
+                console.print(f"[blue]Gefundene Blacklist-Muster ({len(matches)}): {', '.join(matches)}[/blue]")
                 
                 # Get all installed packages
                 result = subprocess.run("dpkg-query -f '${Package}\\n' -W", shell=True, capture_output=True, text=True)
                 installed_packages = result.stdout.splitlines()
+                console.print(f"[dim]Installierte Pakete: {len(installed_packages)}[/dim]")
                 
                 packages_to_hold = []
                 for pattern in matches:
-                    regex = re.compile(pattern)
-                    for pkg in installed_packages:
-                        if regex.match(pkg):
-                            packages_to_hold.append(pkg)
+                    try:
+                        regex = re.compile(pattern)
+                        for pkg in installed_packages:
+                            if regex.match(pkg):
+                                packages_to_hold.append(pkg)
+                    except re.error as regex_err:
+                        console.print(f"[red]Ungültiges Regex-Muster '{pattern}': {regex_err}[/red]")
                 
                 if packages_to_hold:
                     # Deduplicate
@@ -56,8 +64,14 @@ def update_system():
                         hold_cmd = f"sudo apt-mark hold {' '.join(packages_to_hold)}"
                         if run_command(hold_cmd, desc=f"Setze Hold für {len(packages_to_hold)} Pakete der Blacklist"):
                             console.print(f"[yellow]Gehaltene Pakete:[/yellow] {', '.join(packages_to_hold)}")
+                else:
+                    console.print("[dim]Keine installierten Pakete entsprechen den Blacklist-Mustern.[/dim]")
+            else:
+                console.print("[dim]Keine Blacklist-Muster in der Datei gefunden.[/dim]")
         except Exception as e:
             console.print(f"[red]Fehler beim Anwenden der Blacklist Holds: {e}[/red]")
+    else:
+        console.print("[dim]Keine Blacklist-Datei vorhanden - überspringe Blacklist-Prüfung.[/dim]")
 
     # Check for root privileges (can be done in a decorator, but simple check here first)
     # in real scenarios, use os.geteuid() == 0 check or similar
