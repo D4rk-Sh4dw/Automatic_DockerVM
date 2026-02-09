@@ -182,7 +182,7 @@ def configure_unattended():
         
         # Write Blacklist
         if blacklist_regex:
-            blacklist_content = 'Unattended-Upgrade::Package-Blacklist {\\n' + '\\n    '.join(blacklist_regex) + '\\n};\\n'
+            blacklist_content = 'Unattended-Upgrade::Package-Blacklist {\n' + '\n    '.join(blacklist_regex) + '\n};\n'
             with open("blacklist.tmp", "w") as f:
                 f.write(blacklist_content)
             run_command("sudo mv blacklist.tmp /etc/apt/apt.conf.d/51unattended-upgrades-blacklist", desc="Schreibe Blacklist Config")
