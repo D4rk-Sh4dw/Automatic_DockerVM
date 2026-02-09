@@ -36,6 +36,15 @@ EOF
 
 sudo chmod +x /usr/local/bin/dockervm
 
+# Also create 'dvm' shortcut
+cat <<EOF | sudo tee /usr/local/bin/dvm > /dev/null
+#!/bin/bash
+source $(pwd)/.venv/bin/activate
+exec dvm "\$@"
+EOF
+
+sudo chmod +x /usr/local/bin/dvm
+
 echo ""
 echo "Installation complete! 🎉"
-echo "You can now use the command: dockervm"
+echo "You can now use the command: dvm (or dockervm)"

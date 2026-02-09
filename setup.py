@@ -16,6 +16,7 @@ setup(
     entry_points={
         "console_scripts": [
             "dockervm=dockervm_cli.main:app",
+            "dvm=dockervm_cli.main:app",
         ],
     },
     author="D4rk-Sh4dw",

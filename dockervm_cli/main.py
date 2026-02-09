@@ -6,7 +6,7 @@ from dockervm_cli.utils import console
 from dockervm_cli.commands import update, install, network
 
 app = typer.Typer(
-    name="dockervm",
+    name="dvm",
     help="DockerVM Management CLI - Ein modernes Tool zur Verwaltung deiner Docker VM.",
     add_completion=False,
     no_args_is_help=True
@@ -30,27 +30,27 @@ def list_commands():
     table.add_column("Beschreibung", style="white")
     
     # System Updates
-    table.add_row("dockervm update system", "Manuelles System-Update (apt update & upgrade)")
-    table.add_row("dockervm update auto", "Automatische Updates aktivieren (Unattended-Upgrades)")
-    table.add_row("dockervm update mail", "E-Mail Benachrichtigungen konfigurieren (SMTP)")
-    table.add_row("dockervm update dockhand", "Dockhand Container aktualisieren")
+    table.add_row("dvm update system", "Manuelles System-Update (apt update & upgrade)")
+    table.add_row("dvm update auto", "Automatische Updates aktivieren (Unattended-Upgrades)")
+    table.add_row("dvm update mail", "E-Mail Benachrichtigungen konfigurieren (SMTP)")
+    table.add_row("dvm update dockhand", "Dockhand Container aktualisieren")
     
     # Installation
-    table.add_row("dockervm install docker", "Docker Engine & Compose installieren")
-    table.add_row("dockervm install dockhand", "Dockhand (Portainer Alternative) installieren")
-    table.add_row("dockervm install lazydocker", "Lazydocker (Terminal UI) installieren")
-    table.add_row("dockervm install zsh", "ZSH & Oh My Zsh installieren")
-    table.add_row("dockervm install container", "Container aus Template installieren (z.B. Unifi)")
+    table.add_row("dvm install docker", "Docker Engine & Compose installieren")
+    table.add_row("dvm install dockhand", "Dockhand (Portainer Alternative) installieren")
+    table.add_row("dvm install lazydocker", "Lazydocker (Terminal UI) installieren")
+    table.add_row("dvm install zsh", "ZSH & Oh My Zsh installieren")
+    table.add_row("dvm install container", "Container aus Template installieren (z.B. Unifi)")
     
     # Network
-    table.add_row("dockervm network ip", "Statische IP konfigurieren (Netplan)")
-    table.add_row("dockervm network ipvlan", "IPVLAN Docker Netzwerk einrichten")
-    table.add_row("dockervm network create", "Docker Netzwerk erstellen (für external: true)")
-    table.add_row("dockervm network list", "Alle Docker Netzwerke anzeigen")
+    table.add_row("dvm network ip", "Statische IP konfigurieren (Netplan)")
+    table.add_row("dvm network ipvlan", "IPVLAN Docker Netzwerk einrichten")
+    table.add_row("dvm network create", "Docker Netzwerk erstellen (für external: true)")
+    table.add_row("dvm network list", "Alle Docker Netzwerke anzeigen")
     
     # Misc
-    table.add_row("dockervm update self", "Dieses CLI-Tool aktualisieren")
-    table.add_row("dockervm commands", "Diese Liste anzeigen")
+    table.add_row("dvm update self", "Dieses CLI-Tool aktualisieren")
+    table.add_row("dvm commands", "Diese Liste anzeigen")
     
     console.print(table)
 
@@ -66,7 +66,7 @@ def main(
     Verwalte deine Docker VM ganz einfach.
     """
     if version:
-        console.print("DockerVM CLI Version: [bold cyan]0.1.0[/bold cyan]")
+        console.print("DockerVM CLI Version: [bold cyan]0.1.0[/bold cyan] (Befehl: dvm)")
         raise typer.Exit()
     
     if ctx.invoked_subcommand is None:
