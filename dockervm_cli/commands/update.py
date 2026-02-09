@@ -125,7 +125,7 @@ def configure_unattended():
     config_content = 'APT::Periodic::Update-Package-Lists "1";\nAPT::Periodic::Unattended-Upgrade "1";\n'
     
     # Blacklist Config Prompt
-    console.print("\\n[bold yellow]Paket Blacklist Konfiguration[/bold yellow]")
+    console.print("\n[bold yellow]Paket Blacklist Konfiguration[/bold yellow]")
     console.print("Du kannst verhindern, dass bestimmte Pakete automatisch aktualisiert werden, um die Stabilität zu gewährleisten.")
     
     common_packages = [
@@ -260,7 +260,7 @@ def configure_mail():
         raise typer.Exit(code=1)
         
     # 2. SMTP Configuration
-    console.print("\\n[yellow]SMTP Server Daten:[/yellow]")
+    console.print("\n[yellow]SMTP Server Daten:[/yellow]")
     smtp_host = questionary.text("SMTP Server (z.B. smtp.gmail.com):").ask()
     smtp_port = questionary.text("SMTP Port:", default="587").ask()
     smtp_user = questionary.text("SMTP Benutzer / E-Mail:").ask()
@@ -294,21 +294,22 @@ password       {smtp_pass}
             
         run_command("sudo mv msmtprc.tmp /etc/msmtprc", desc="Schreibe SMTP Konfiguration")
         run_command("sudo chmod 600 /etc/msmtprc", desc="Setze Berechtigungen (600)")
+        run_command("sudo touch /var/log/msmtp.log && sudo chmod 666 /var/log/msmtp.log", desc="Erstelle Log-Datei /var/log/msmtp.log")
         run_command("sudo ln -sf /usr/bin/msmtp /usr/sbin/sendmail", desc="Verlinke sendmail zu msmtp")
     except Exception as e:
         console.print(f"[bold red]Fehler beim Speichern der Konfiguration: {e}[/bold red]")
         raise typer.Exit(code=1)
         
     # 3. Notification Preferences
-    console.print("\\n[yellow]Benachrichtigungs-Einstellungen:[/yellow]")
+    console.print("\n[yellow]Benachrichtigungs-Einstellungen:[/yellow]")
     recipient = questionary.text("Empfänger E-Mail:", default=from_addr).ask()
     only_on_error = questionary.confirm("Nur bei Fehlern benachrichtigen?", default=True).ask()
     
-    apt_conf_content = f'Unattended-Upgrade::Mail "{recipient}";\\n'
+    apt_conf_content = f'Unattended-Upgrade::Mail "{recipient}";\n'
     if only_on_error:
-        apt_conf_content += 'Unattended-Upgrade::MailOnlyOnError "true";\\n'
+        apt_conf_content += 'Unattended-Upgrade::MailOnlyOnError "true";\n'
     else:
-        apt_conf_content += 'Unattended-Upgrade::MailOnlyOnError "false";\\n'
+        apt_conf_content += 'Unattended-Upgrade::MailOnlyOnError "false";\n'
         
     try:
         with open("51unattended-upgrades-email.tmp", "w") as f:
