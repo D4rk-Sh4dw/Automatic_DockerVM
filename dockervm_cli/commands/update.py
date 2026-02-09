@@ -1,5 +1,7 @@
 
 import typer
+import os
+import subprocess
 from dockervm_cli.utils import run_command, console
 
 app = typer.Typer(help="System- und Anwendungs-Updates verwalten.")
