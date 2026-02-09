@@ -1,0 +1,19 @@
+# Ignore everything
+*
+
+# Except these (Safety allowlist)
+!/dockervm_cli/
+!/dockervm_cli/**
+!setup.py
+!requirements.txt
+!README.md
+!.gitignore
+
+# Python cruft (just in case)
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+build/
+venv/
+.env
