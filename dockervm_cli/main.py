@@ -45,6 +45,8 @@ def list_commands():
     # Network
     table.add_row("dockervm network ip", "Statische IP konfigurieren (Netplan)")
     table.add_row("dockervm network ipvlan", "IPVLAN Docker Netzwerk einrichten")
+    table.add_row("dockervm network create", "Docker Netzwerk erstellen (für external: true)")
+    table.add_row("dockervm network list", "Alle Docker Netzwerke anzeigen")
     
     # Misc
     table.add_row("dockervm update self", "Dieses CLI-Tool aktualisieren")
@@ -90,6 +92,8 @@ def main(
                     "Container aus Template installieren",
                     "Netzwerk konfigurieren (Statische IP)",
                     "IPVLAN konfigurieren",
+                    "Docker Netzwerk erstellen",
+                    "Docker Netzwerke anzeigen",
                     "CLI aktualisieren",
                     "Beenden"
                 ]
@@ -119,6 +123,10 @@ def main(
                 network.configure_static_ip()
             elif choice == "IPVLAN konfigurieren":
                 network.configure_ipvlan()
+            elif choice == "Docker Netzwerk erstellen":
+                network.create_network()
+            elif choice == "Docker Netzwerke anzeigen":
+                network.list_networks()
             elif choice == "CLI aktualisieren":
                 update.update_self()
             elif choice == "Beenden":
