@@ -5,6 +5,7 @@
 !/dockervm_cli/
 !/dockervm_cli/**
 !setup.py
+!setup.sh
 !requirements.txt
 !README.md
 !.gitignore
