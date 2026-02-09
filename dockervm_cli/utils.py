@@ -32,5 +32,45 @@ def run_command(command: str, desc: str = None, error_msg: str = None, check: bo
             console.print(f"[bold red]❌  Befehl fehlgeschlagen: {command}[/bold red]")
         return False
 
+def get_docker_compose_cmd() -> str:
+    """
+    Detects if 'docker compose' (V2) or 'docker-compose' (V1) should be used.
+    """
+    try:
+        # Check for V2 first
+        result = subprocess.run(["docker", "compose", "version"], capture_output=True, text=True)
+        if result.returncode == 0:
+            return "docker compose"
+    except Exception:
+        pass
+
+    try:
+        # Fallback to V1
+        result = subprocess.run(["docker-compose", "version"], capture_output=True, text=True)
+        if result.returncode == 0:
+            return "docker-compose"
+    except Exception:
+        pass
+
+    # Default to docker compose if detection fails, though it might fail later
+    return "docker compose"
+
+def get_host_ip() -> str:
+    """
+    Attempts to get the host's primary IP address.
+    """
+    try:
+        # Simple method using hostname -I (Linux specific)
+        result = subprocess.run(["hostname", "-I"], capture_output=True, text=True)
+        if result.returncode == 0:
+            # Returns all IPs, take the first one
+            ips = result.stdout.strip().split()
+            if ips:
+                return ips[0]
+    except Exception:
+        pass
+    
+    return "<deine-ip>"
+
 def print_header(title: str):
     console.print(Panel(f"[bold yellow]{title}[/bold yellow]", expand=False))

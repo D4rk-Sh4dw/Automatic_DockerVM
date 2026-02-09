@@ -1,6 +1,6 @@
 
 import typer
-from dockervm_cli.utils import run_command, console
+from dockervm_cli.utils import run_command, console, get_docker_compose_cmd, get_host_ip
 
 app = typer.Typer(help="Anwendungen und Dienste installieren.")
 
@@ -94,9 +94,11 @@ def install_dockhand():
         
     # Start Dockhand
     console.print("[bold blue]Starte Dockhand...[/bold blue]")
-    if run_command(f"cd {install_dir} && sudo docker compose up -d", desc="Führe docker compose up aus"):
+    compose_cmd = get_docker_compose_cmd()
+    if run_command(f"cd {install_dir} && sudo {compose_cmd} up -d", desc=f"Führe {compose_cmd} up aus"):
+        host_ip = get_host_ip()
         console.print(f"[bold green]Dockhand erfolgreich installiert![/bold green]")
-        console.print(f"Zugriff unter: [link]http://<deine-ip>:3000[/link]")
+        console.print(f"Zugriff unter: [link]http://{host_ip}:3000[/link]")
     else:
         console.print("[bold red]Fehler beim Starten von Dockhand.[/bold red]")
         raise typer.Exit(code=1)
@@ -304,8 +306,12 @@ def install_container():
         run_command(f"sudo mv docker-compose.yml.tmp {install_dir}/docker-compose.yml", desc="Kopiere docker-compose.yml")
         
         # Start container
-        if run_command(f"cd {install_dir} && sudo docker compose up -d", desc="Starte Container"):
+        compose_cmd = get_docker_compose_cmd()
+        if run_command(f"cd {install_dir} && sudo {compose_cmd} up -d", desc="Starte Container"):
+            host_ip = get_host_ip()
             console.print(f"[bold green]{selected_template} erfolgreich installiert![/bold green]")
+            # Try to guess port from compose if possible? For now just show IP
+            console.print(f"Zugriff unter: [link]http://{host_ip}[/link] (Port siehe Template)")
         else:
             console.print(f"[bold red]Fehler beim Starten des Containers.[/bold red]")
             

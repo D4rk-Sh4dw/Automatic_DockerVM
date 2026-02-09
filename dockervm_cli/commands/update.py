@@ -2,7 +2,7 @@
 import typer
 import os
 import subprocess
-from dockervm_cli.utils import run_command, console
+from dockervm_cli.utils import run_command, console, get_docker_compose_cmd
 
 app = typer.Typer(help="System- und Anwendungs-Updates verwalten.")
 
@@ -234,11 +234,12 @@ def update_dockhand():
     console.print("[bold blue]Aktualisiere Dockhand...[/bold blue]")
     
     # Docker Compose Pull
-    if not run_command(f"cd {install_dir} && sudo docker compose pull", desc="Ziehe neueste Images"):
+    compose_cmd = get_docker_compose_cmd()
+    if not run_command(f"cd {install_dir} && sudo {compose_cmd} pull", desc="Ziehe neueste Images"):
         raise typer.Exit(code=1)
         
     # Docker Compose Up
-    if run_command(f"cd {install_dir} && sudo docker compose up -d", desc="Starte Container neu"):
+    if run_command(f"cd {install_dir} && sudo {compose_cmd} up -d", desc="Starte Container neu"):
         console.print("[bold green]Dockhand erfolgreich aktualisiert![/bold green]")
     else:
         raise typer.Exit(code=1)
