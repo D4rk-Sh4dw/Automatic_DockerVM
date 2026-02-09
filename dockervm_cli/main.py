@@ -30,7 +30,7 @@ def list_commands():
     table.add_column("Beschreibung", style="white")
     
     # System Updates
-    table.add_row("dockervm system update", "Manuelles System-Update (apt update & upgrade)")
+    table.add_row("dockervm update system", "Manuelles System-Update (apt update & upgrade)")
     table.add_row("dockervm update auto", "Automatische Updates aktivieren (Unattended-Upgrades)")
     table.add_row("dockervm update mail", "E-Mail Benachrichtigungen konfigurieren (SMTP)")
     table.add_row("dockervm update dockhand", "Dockhand Container aktualisieren")
