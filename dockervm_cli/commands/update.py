@@ -78,11 +78,20 @@ def update_system():
 @app.command("self")
 def update_self():
     """
-    Aktualisiert das dockervm CLI Tool selbst via Git.
+    Aktualisiert das dockervm CLI Tool selbst via Git und reinstalliert es.
     """
     console.print("[bold blue]Aktualisiere dockervm CLI...[/bold blue]")
-    run_command("git pull", desc="Ziehe neueste Änderungen von Git")
-    # In a real deployed scenario, you might need to re-run setup.sh or pip install .
+    
+    if run_command("git pull", desc="Ziehe neueste Änderungen von Git"):
+        # Re-install the package to apply changes
+        if run_command("pip install .", desc="Installiere aktualisiertes Paket"):
+             console.print("[bold green]Update erfolgreich! Bitte starten Sie das CLI neu.[/bold green]")
+        else:
+             console.print("[bold red]Fehler bei der Installation des Updates.[/bold red]")
+             raise typer.Exit(code=1)
+    else:
+        console.print("[bold red]Fehler beim Git Pull.[/bold red]")
+        raise typer.Exit(code=1)
 
 
 @app.command("auto")
