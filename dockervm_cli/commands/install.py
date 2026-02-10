@@ -379,14 +379,19 @@ def install_dns_server():
     
     # 4. Download files
     console.print("\n[blue]Lade Konfigurationsdateien herunter...[/blue]")
-    run_command(
-        f"sudo wget -qO {install_dir}/docker-compose.yml {BASE_URL}/docker-compose.yml",
+    if not run_command(
+        f"sudo wget -O {install_dir}/docker-compose.yml '{BASE_URL}/docker-compose.yml'",
         desc="Lade docker-compose.yml"
-    )
-    run_command(
-        f"sudo wget -qO {install_dir}/config/adguard/AdGuardHome.yaml {BASE_URL}/config/adguard/AdGuardHome.yaml",
+    ):
+        console.print("[bold red]Download fehlgeschlagen. Bitte Internetverbindung/DNS prüfen.[/bold red]")
+        raise typer.Exit(code=1)
+    
+    if not run_command(
+        f"sudo wget -O {install_dir}/config/adguard/AdGuardHome.yaml '{BASE_URL}/config/adguard/AdGuardHome.yaml'",
         desc="Lade AdGuard Home Konfiguration"
-    )
+    ):
+        console.print("[bold red]Download fehlgeschlagen.[/bold red]")
+        raise typer.Exit(code=1)
     
     # 5. Start containers
     console.print("\n[bold blue]Starte DNS Server...[/bold blue]")
