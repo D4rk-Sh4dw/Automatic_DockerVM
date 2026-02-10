@@ -3,7 +3,7 @@ import typer
 from typing import Optional
 from dockervm_cli.utils import console
 
-from dockervm_cli.commands import update, install, network
+from dockervm_cli.commands import update, install, network, gpu
 
 app = typer.Typer(
     name="dvm",
@@ -15,6 +15,7 @@ app = typer.Typer(
 app.add_typer(update.app, name="update")
 app.add_typer(install.app, name="install")
 app.add_typer(network.app, name="network")
+app.add_typer(gpu.app, name="gpu")
 
 @app.command("commands")
 def list_commands():
