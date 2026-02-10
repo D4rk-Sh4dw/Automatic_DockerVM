@@ -1,6 +1,6 @@
-
 import typer
 import os
+import sys
 import subprocess
 from dockervm_cli.utils import run_command, console, get_docker_compose_cmd, DVM_BASE_PATH
 
