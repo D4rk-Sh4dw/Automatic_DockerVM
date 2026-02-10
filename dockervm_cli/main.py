@@ -41,6 +41,7 @@ def list_commands():
     table.add_row("dvm install lazydocker", "Lazydocker (Terminal UI) installieren")
     table.add_row("dvm install zsh", "ZSH & Oh My Zsh installieren")
     table.add_row("dvm install container", "Container aus Template installieren (z.B. Unifi)")
+    table.add_row("dvm install dns-server", "DNS Server installieren (AdGuard + Technitium)")
     
     # Network
     table.add_row("dvm network ip", "Statische IP konfigurieren (Netplan)")
@@ -90,6 +91,7 @@ def main(
                     "Lazydocker installieren",
                     "ZSH (inkl. Oh My Zsh) installieren",
                     "Container aus Template installieren",
+                    "DNS Server installieren",
                     "Netzwerk konfigurieren (Statische IP)",
                     "IPVLAN konfigurieren",
                     "Docker Netzwerk erstellen",
@@ -119,6 +121,8 @@ def main(
                 install.install_zsh()
             elif choice == "Container aus Template installieren":
                 install.install_container()
+            elif choice == "DNS Server installieren":
+                install.install_dns_server()
             elif choice == "Netzwerk konfigurieren (Statische IP)":
                 network.configure_static_ip()
             elif choice == "IPVLAN konfigurieren":

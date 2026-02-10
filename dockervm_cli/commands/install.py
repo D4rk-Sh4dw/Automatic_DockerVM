@@ -316,3 +316,86 @@ def install_container():
             
     except Exception as e:
         console.print(f"[bold red]Systemfehler: {e}[/bold red]")
+
+
+@app.command("dns-server")
+def install_dns_server():
+    """
+    Installiert den Unified DNS Server (AdGuard + Technitium Dashboard).
+    """
+    import questionary
+    import os
+    
+    console.print("[bold blue]DNS Server Installation[/bold blue]")
+    
+    BASE_URL = "https://raw.githubusercontent.com/D4rk-Sh4dw/dns-server/main"
+    
+    if not questionary.confirm("Möchtest du den DNS Server installieren?").ask():
+        raise typer.Exit()
+    
+    # 1. Choose install path
+    default_dir = f"{DVM_BASE_PATH}/dns-server"
+    install_dir = questionary.text("Installationsverzeichnis:", default=default_dir).ask()
+    
+    if not install_dir:
+        console.print("[red]Pfad darf nicht leer sein![/red]")
+        raise typer.Exit(code=1)
+    
+    if os.path.exists(install_dir):
+        if not questionary.confirm(f"Verzeichnis {install_dir} existiert bereits. Überschreiben?", default=False).ask():
+            console.print("[yellow]Abbruch.[/yellow]")
+            raise typer.Exit()
+    
+    # 2. Create directory structure
+    run_command(f"sudo mkdir -p {install_dir}/config/adguard", desc="Erstelle Verzeichnisstruktur")
+    run_command(f"sudo mkdir -p {install_dir}/data", desc="Erstelle Datenverzeichnis")
+    
+    # 3. Fix Port 53 (systemd-resolved)
+    console.print("\n[yellow]Prüfe Port 53 (systemd-resolved)...[/yellow]")
+    
+    # Check if systemd-resolved is active
+    import subprocess
+    result = subprocess.run(
+        ["systemctl", "is-active", "--quiet", "systemd-resolved"],
+        capture_output=True
+    )
+    
+    if result.returncode == 0:
+        if questionary.confirm(
+            "systemd-resolved ist aktiv und blockiert Port 53. Soll es deaktiviert werden? (Empfohlen)",
+            default=True
+        ).ask():
+            run_command("sudo systemctl stop systemd-resolved", desc="Stoppe systemd-resolved")
+            run_command("sudo systemctl disable systemd-resolved", desc="Deaktiviere systemd-resolved")
+            run_command("sudo rm -f /etc/resolv.conf", desc="Entferne alte resolv.conf")
+            run_command(
+                "echo -e 'nameserver 1.1.1.1\\nnameserver 8.8.8.8' | sudo tee /etc/resolv.conf > /dev/null",
+                desc="Setze temporäre DNS Server"
+            )
+        else:
+            console.print("[yellow]⚠️  Port 53 könnte blockiert sein. DNS Server startet ggf. nicht.[/yellow]")
+    else:
+        console.print("[green]systemd-resolved ist nicht aktiv - Port 53 ist frei.[/green]")
+    
+    # 4. Download files
+    console.print("\n[blue]Lade Konfigurationsdateien herunter...[/blue]")
+    run_command(
+        f"sudo wget -qO {install_dir}/docker-compose.yml {BASE_URL}/docker-compose.yml",
+        desc="Lade docker-compose.yml"
+    )
+    run_command(
+        f"sudo wget -qO {install_dir}/config/adguard/AdGuardHome.yaml {BASE_URL}/config/adguard/AdGuardHome.yaml",
+        desc="Lade AdGuard Home Konfiguration"
+    )
+    
+    # 5. Start containers
+    console.print("\n[bold blue]Starte DNS Server...[/bold blue]")
+    compose_cmd = get_docker_compose_cmd()
+    if run_command(f"cd {install_dir} && sudo {compose_cmd} up -d", desc=f"Führe {compose_cmd} up aus"):
+        host_ip = get_host_ip()
+        console.print(f"\n[bold green]DNS Server erfolgreich installiert![/bold green]")
+        console.print(f"Dashboard: [link]http://{host_ip}/[/link]")
+        console.print(f"Installationspfad: {install_dir}")
+    else:
+        console.print("[bold red]Fehler beim Starten des DNS Servers.[/bold red]")
+        raise typer.Exit(code=1)
