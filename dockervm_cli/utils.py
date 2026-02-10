@@ -36,10 +36,19 @@ def run_command(command: str, desc: str = None, error_msg: str = None, check: bo
         return True
     except subprocess.CalledProcessError:
         if error_msg:
-            console.print(f"[bold red]❌  {error_msg}[/bold red]")
+            print_error(error_msg)
         else:
-            console.print(f"[bold red]❌  Befehl fehlgeschlagen: {command}[/bold red]")
+            print_error(f"Befehl fehlgeschlagen: {command}")
         return False
+
+def print_status(msg: str, nl: bool = True):
+    console.print(f"[bold blue]ℹ️  {msg}[/bold blue]", end="\n" if nl else "")
+
+def print_success(msg: str, nl: bool = True):
+    console.print(f"[bold green]✔️  {msg}[/bold green]", end="\n" if nl else "")
+
+def print_error(msg: str, nl: bool = True):
+    console.print(f"[bold red]❌  {msg}[/bold red]", end="\n" if nl else "")
 
 def get_docker_compose_cmd() -> str:
     """

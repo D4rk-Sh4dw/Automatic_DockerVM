@@ -44,7 +44,7 @@ def install_driver(url: Optional[str] = typer.Option(None, help="Benutzerdefinie
         raise typer.Exit(code=1)
 
     print_status("Installiere Abhängigkeiten...")
-    if not run_command(["apt", "install", "-y", "make", "gcc", "build-essential"]):
+    if not run_command("apt install -y make gcc build-essential"):
          print_error("Fehler beim Installieren der Abhängigkeiten.")
          raise typer.Exit(code=1)
     
@@ -53,11 +53,11 @@ def install_driver(url: Optional[str] = typer.Option(None, help="Benutzerdefinie
         filename = "nvidia-driver.run"
 
     print_status(f"Lade NVIDIA Treiber herunter ({filename})...")
-    if not run_command(["wget", "-O", filename, url]):
+    if not run_command(f"wget -O {filename} {url}"):
         print_error("Fehler beim Herunterladen des Treibers.")
         raise typer.Exit(code=1)
     
-    run_command(["chmod", "+x", filename])
+    run_command(f"chmod +x {filename}")
 
     print_status("Installiere NVIDIA Treiber (dies kann eine Weile dauern)...")
     try:
@@ -68,7 +68,7 @@ def install_driver(url: Optional[str] = typer.Option(None, help="Benutzerdefinie
         raise typer.Exit(code=1)
 
     print_status("Installiere nvtop...")
-    run_command(["apt", "install", "-y", "nvtop"])
+    run_command("apt install -y nvtop")
     
     print_success("Treiber-Installation abgeschlossen. Bitte das System neu starten, falls erforderlich.")
 
@@ -90,18 +90,18 @@ def setup_docker():
         raise typer.Exit(code=1)
 
     print_status("Aktualisiere apt und installiere nvidia-container-toolkit...")
-    run_command(["apt", "update"])
-    if not run_command(["apt", "install", "-y", "nvidia-container-toolkit"]):
+    run_command("apt update")
+    if not run_command("apt install -y nvidia-container-toolkit"):
         print_error("Fehler beim Installieren von nvidia-container-toolkit.")
         raise typer.Exit(code=1)
 
     print_status("Konfiguriere Docker Runtime...")
-    if not run_command(["nvidia-ctk", "runtime", "configure", "--runtime=docker"]):
+    if not run_command("nvidia-ctk runtime configure --runtime=docker"):
         print_error("Fehler beim Konfigurieren der Docker Runtime.")
         raise typer.Exit(code=1)
     
     print_status("Starte Docker neu...")
-    run_command(["systemctl", "restart", "docker"])
+    run_command("systemctl restart docker")
 
     print_status("Teste GPU Durchreichung mit Docker Container...")
     try:
