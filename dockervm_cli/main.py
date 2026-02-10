@@ -48,6 +48,12 @@ def list_commands():
     table.add_row("dvm network ipvlan", "IPVLAN Docker Netzwerk einrichten")
     table.add_row("dvm network create", "Docker Netzwerk erstellen (für external: true)")
     table.add_row("dvm network list", "Alle Docker Netzwerke anzeigen")
+
+    # GPU
+    table.add_row("dvm gpu check", "NVIDIA GPU Erkennung prüfen")
+    table.add_row("dvm gpu install-driver", "NVIDIA Treiber installieren")
+    table.add_row("dvm gpu setup-docker", "Docker für GPU konfigurieren")
+    table.add_row("dvm gpu setup-persistence", "GPU Persistence Mode (Autostart) aktivieren")
     
     # Misc
     table.add_row("dvm update self", "Dieses CLI-Tool aktualisieren")
@@ -67,7 +73,7 @@ def main(
     Verwalte deine Docker VM ganz einfach.
     """
     if version:
-        console.print("DockerVM CLI Version: [bold cyan]0.1.0[/bold cyan] (Befehl: dvm)")
+        console.print("DockerVM CLI Version: [bold cyan]0.2.0[/bold cyan] (Befehl: dvm)")
         raise typer.Exit()
     
     if ctx.invoked_subcommand is None:
@@ -95,6 +101,10 @@ def main(
                     "IPVLAN konfigurieren",
                     "Docker Netzwerk erstellen",
                     "Docker Netzwerke anzeigen",
+                    "GPU prüfen",
+                    "NVIDIA Treiber installieren",
+                    "Docker GPU Setup",
+                    "GPU Persistence aktivieren",
                     "CLI aktualisieren",
                     "Beenden"
                 ]
@@ -128,6 +138,14 @@ def main(
                 network.create_network()
             elif choice == "Docker Netzwerke anzeigen":
                 network.list_networks()
+            elif choice == "GPU prüfen":
+                gpu.check()
+            elif choice == "NVIDIA Treiber installieren":
+                gpu.install_driver()
+            elif choice == "Docker GPU Setup":
+                gpu.setup_docker()
+            elif choice == "GPU Persistence aktivieren":
+                gpu.setup_persistence()
             elif choice == "CLI aktualisieren":
                 update.update_self()
             elif choice == "Beenden":

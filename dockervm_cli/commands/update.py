@@ -114,7 +114,9 @@ def update_self():
     console.print(f"[bold blue]Aktualisiere dvm CLI... ({repo_dir})[/bold blue]")
     
     if run_command(f"cd {repo_dir} && git pull", desc="Ziehe neueste Änderungen von Git"):
-        if run_command(f"cd {repo_dir} && pip install .", desc="Installiere aktualisiertes Paket"):
+        # Use sys.executable to ensure we use the same python environment as the running script
+        python_exe = sys.executable
+        if run_command(f"cd {repo_dir} && {python_exe} -m pip install --upgrade --force-reinstall .", desc="Installiere aktualisiertes Paket"):
              console.print("[bold green]Update erfolgreich! Bitte starten Sie das CLI neu.[/bold green]")
         else:
              console.print("[bold red]Fehler bei der Installation des Updates.[/bold red]")
