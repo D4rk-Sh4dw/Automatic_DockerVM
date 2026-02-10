@@ -39,9 +39,18 @@ def run_command(command: str, desc: str = None, error_msg: str = None, check: bo
 def get_docker_compose_cmd() -> str:
     """
     Detects if 'docker compose' (V2) or 'docker-compose' (V1) should be used.
+    Checks with sudo since installation commands run with sudo.
     """
     try:
-        # Check for V2 first
+        # Check for V2 first (with sudo)
+        result = subprocess.run(["sudo", "docker", "compose", "version"], capture_output=True, text=True)
+        if result.returncode == 0:
+            return "docker compose"
+    except Exception:
+        pass
+
+    try:
+        # Check for V2 without sudo (fallback)
         result = subprocess.run(["docker", "compose", "version"], capture_output=True, text=True)
         if result.returncode == 0:
             return "docker compose"
@@ -50,13 +59,21 @@ def get_docker_compose_cmd() -> str:
 
     try:
         # Fallback to V1
+        result = subprocess.run(["sudo", "docker-compose", "version"], capture_output=True, text=True)
+        if result.returncode == 0:
+            return "docker-compose"
+    except Exception:
+        pass
+
+    try:
+        # Fallback to V1 without sudo
         result = subprocess.run(["docker-compose", "version"], capture_output=True, text=True)
         if result.returncode == 0:
             return "docker-compose"
     except Exception:
         pass
 
-    # Default to docker compose if detection fails, though it might fail later
+    # Default to docker compose if detection fails
     return "docker compose"
 
 def get_host_ip() -> str:

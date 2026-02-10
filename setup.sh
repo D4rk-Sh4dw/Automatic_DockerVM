@@ -26,6 +26,24 @@ else
     echo "Docker installed successfully!"
 fi
 
+# 2.1 Verify Docker Compose and Install Manually if needed
+if docker compose version &> /dev/null; then
+    echo "Docker Compose is working: $(docker compose version)"
+else
+    echo "Docker Compose CLI plugin not found or not working. Installing manually..."
+    DOCKER_CONFIG=${DOCKER_CONFIG:-$HOME/.docker}
+    mkdir -p $DOCKER_CONFIG/cli-plugins
+    curl -SL https://github.com/docker/compose/releases/download/v2.24.5/docker-compose-linux-x86_64 -o $DOCKER_CONFIG/cli-plugins/docker-compose
+    chmod +x $DOCKER_CONFIG/cli-plugins/docker-compose
+    
+    # Also install globally
+    sudo mkdir -p /usr/local/lib/docker/cli-plugins
+    sudo curl -SL https://github.com/docker/compose/releases/download/v2.24.5/docker-compose-linux-x86_64 -o /usr/local/lib/docker/cli-plugins/docker-compose
+    sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+    
+    echo "Docker Compose plugin installed manually."
+fi
+
 # 3. Setup Virtual Environment
 echo "Setting up virtual environment..."
 if [ -d ".venv" ]; then
