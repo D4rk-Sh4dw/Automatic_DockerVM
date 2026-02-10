@@ -98,13 +98,22 @@ def update_self():
     """
     import os
     
-    # Resolve repo root from package location (works from any CWD)
-    repo_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    # Read repo path saved during setup.sh installation
+    repo_path_file = "/etc/dvm/repo_path"
+    if not os.path.exists(repo_path_file):
+        console.print(f"[bold red]Repo-Pfad nicht gefunden ({repo_path_file}). Bitte setup.sh erneut ausführen.[/bold red]")
+        raise typer.Exit(code=1)
+    
+    with open(repo_path_file, "r") as f:
+        repo_dir = f.read().strip()
+    
+    if not os.path.isdir(repo_dir):
+        console.print(f"[bold red]Repo-Verzeichnis existiert nicht: {repo_dir}[/bold red]")
+        raise typer.Exit(code=1)
     
     console.print(f"[bold blue]Aktualisiere dvm CLI... ({repo_dir})[/bold blue]")
     
     if run_command(f"cd {repo_dir} && git pull", desc="Ziehe neueste Änderungen von Git"):
-        # Re-install the package to apply changes
         if run_command(f"cd {repo_dir} && pip install .", desc="Installiere aktualisiertes Paket"):
              console.print("[bold green]Update erfolgreich! Bitte starten Sie das CLI neu.[/bold green]")
         else:

@@ -3,7 +3,9 @@
 
 set -e
 
-echo "Starting DockerVM CLI Installation..."
+REPO_DIR="$(pwd)"
+
+echo "Starting DVM CLI Installation..."
 
 # 1. Install System Dependencies
 echo "Installing system dependencies..."
@@ -21,30 +23,32 @@ fi
 source .venv/bin/activate
 
 # 3. Install Package
-echo "Installing DockerVM CLI..."
+echo "Installing DVM CLI..."
 pip install --upgrade pip
 pip install .
 
-# 4. Create Symlink
-echo "Creating global command 'dockervm'..."
-# Create a wrapper script that uses the venv python
+# 4. Save repo path for 'dvm update self'
+sudo mkdir -p /etc/dvm
+echo "$REPO_DIR" | sudo tee /etc/dvm/repo_path > /dev/null
+
+# 5. Create wrapper scripts with absolute paths
+echo "Creating global commands 'dvm' and 'dockervm'..."
+
 cat <<EOF | sudo tee /usr/local/bin/dockervm > /dev/null
 #!/bin/bash
-source $(pwd)/.venv/bin/activate
+source ${REPO_DIR}/.venv/bin/activate
 exec dockervm "\$@"
 EOF
-
 sudo chmod +x /usr/local/bin/dockervm
 
-# Also create 'dvm' shortcut
 cat <<EOF | sudo tee /usr/local/bin/dvm > /dev/null
 #!/bin/bash
-source $(pwd)/.venv/bin/activate
+source ${REPO_DIR}/.venv/bin/activate
 exec dvm "\$@"
 EOF
-
 sudo chmod +x /usr/local/bin/dvm
 
 echo ""
 echo "Installation complete! 🎉"
+echo "Repo path: $REPO_DIR"
 echo "You can now use the command: dvm (or dockervm)"
