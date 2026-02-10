@@ -35,6 +35,7 @@ def list_commands():
     table.add_row("System Management", "dvm update system", "Manuelles System-Update (apt update & upgrade)")
     table.add_row("", "dvm update auto", "Automatische Updates aktivieren (Unattended-Upgrades)")
     table.add_row("", "dvm update mail", "E-Mail Benachrichtigungen konfigurieren (SMTP)")
+    table.add_row("", "dvm update cron", "Automatische Self-Updates konfigurieren (Cron)")
     table.add_row("", "dvm update dockhand", "Dockhand Container aktualisieren")
     table.add_section()
     
@@ -99,6 +100,7 @@ def main(
                     "System Update (Manuell)",
                     "Automatische Updates aktivieren",
                     "E-Mail Benachrichtigungen konfigurieren",
+                    "Automatische Self-Updates (Cron)",
                     "Dockhand aktualisieren",
                     Separator(),
                     Separator("--- Installation ---"),
@@ -134,6 +136,8 @@ def main(
                 update.configure_unattended()
             elif choice == "E-Mail Benachrichtigungen konfigurieren":
                 update.configure_mail()
+            elif choice == "Automatische Self-Updates (Cron)":
+                update.configure_self_cron()
             elif choice == "Dockhand aktualisieren":
                 update.update_dockhand()
             elif choice == "Dockhand installieren":

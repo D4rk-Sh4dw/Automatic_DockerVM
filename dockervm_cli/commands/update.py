@@ -126,6 +126,93 @@ def update_self():
         raise typer.Exit(code=1)
 
 
+@app.command("cron")
+def configure_self_cron():
+    """
+    Konfiguriert einen Cron-Job für automatische Self-Updates.
+    """
+    import questionary
+    import getpass
+    
+    console.print("[bold blue]Konfiguration automatischer Self-Updates (Cron)[/bold blue]")
+    
+    # Check if dvm is available in path or use absolute path
+    dvm_path = "/usr/local/bin/dvm"
+    if not os.path.exists(dvm_path):
+        console.print(f"[yellow]Warnung: {dvm_path} nicht gefunden. Suche im PATH...[/yellow]")
+        import shutil
+        dvm_path = shutil.which("dvm")
+        if not dvm_path:
+             console.print("[bold red]dvm Befehl nicht gefunden. Bitte sicherstellen, dass dvm installiert ist.[/bold red]")
+             raise typer.Exit(code=1)
+    
+    console.print(f"[dim]Verwende dvm Pfad: {dvm_path}[/dim]")
+    
+    # Log file location
+    user = getpass.getuser()
+    log_file = f"/home/{user}/dvm_update.log" if user != "root" else "/var/log/dvm_update.log"
+    
+    # 1. Frequency
+    frequency = questionary.select(
+        "Wie oft sollen Updates geprüft werden?",
+        choices=[
+            "Täglich (um 04:00 Uhr)",
+            "Wöchentlich (Sonntags um 04:00 Uhr)",
+            "Deaktivieren (Cron entfernen)"
+        ]
+    ).ask()
+    
+    cron_cmd = f"{dvm_path} update self >> {log_file} 2>&1"
+    
+    # 2. Manage Crontab
+    try:
+        # Get current crontab
+        result = subprocess.run("crontab -l", shell=True, capture_output=True, text=True)
+        current_crontab = result.stdout.strip().splitlines()
+        
+        # Filter out existing dvm update jobs
+        new_crontab = [line for line in current_crontab if "dvm update self" not in line]
+        
+        if frequency == "Deaktivieren (Cron entfernen)":
+            if len(new_crontab) < len(current_crontab):
+                console.print("[yellow]Bestehender Cron-Job entfernt.[/yellow]")
+            else:
+                console.print("[dim]Kein bestehender Cron-Job gefunden.[/dim]")
+        else:
+            # Add new job
+            if frequency == "Täglich (um 04:00 Uhr)":
+                schedule = "0 4 * * *"
+            else: # Weekly
+                schedule = "0 4 * * 0"
+                
+            job = f"{schedule} {cron_cmd}"
+            new_crontab.append(job)
+            new_crontab.append("") # Ensure newline at end
+            
+            console.print(f"[green]Füge Cron-Job hinzu:[/green] {job}")
+            console.print(f"[dim]Log-Datei: {log_file}[/dim]")
+            
+        # Write back
+        new_crontab_str = "\n".join(new_crontab) + "\n"
+        
+        # Use subprocess to write to crontab via stdin
+        run_result = subprocess.run(
+            "crontab -", 
+            input=new_crontab_str, 
+            shell=True, 
+            text=True, 
+            capture_output=True
+        )
+        
+        if run_result.returncode == 0:
+            console.print("[bold green]Crontab erfolgreich aktualisiert![/bold green]")
+        else:
+            console.print(f"[bold red]Fehler beim Schreiben der Crontab: {run_result.stderr}[/bold red]")
+            
+    except Exception as e:
+        console.print(f"[bold red]Fehler bei der Cron-Konfiguration: {e}[/bold red]")
+
+
 @app.command("auto")
 def configure_unattended():
     """
