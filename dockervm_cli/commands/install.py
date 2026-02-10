@@ -325,6 +325,8 @@ def install_dns_server():
     """
     import questionary
     import os
+    import subprocess
+    import tempfile
     
     console.print("[bold blue]DNS Server Installation[/bold blue]")
     
@@ -351,10 +353,8 @@ def install_dns_server():
     run_command(f"sudo mkdir -p {install_dir}/data", desc="Erstelle Datenverzeichnis")
     
     # 3. Fix Port 53 (systemd-resolved)
-    console.print("\n[yellow]Prüfe Port 53 (systemd-resolved)...[/yellow]")
+    console.print("\n[yellow]Pruefe Port 53 (systemd-resolved)...[/yellow]")
     
-    # Check if systemd-resolved is active
-    import subprocess
     result = subprocess.run(
         ["systemctl", "is-active", "--quiet", "systemd-resolved"],
         capture_output=True
@@ -368,12 +368,18 @@ def install_dns_server():
             run_command("sudo systemctl stop systemd-resolved", desc="Stoppe systemd-resolved")
             run_command("sudo systemctl disable systemd-resolved", desc="Deaktiviere systemd-resolved")
             run_command("sudo rm -f /etc/resolv.conf", desc="Entferne alte resolv.conf")
-            run_command(
-                "echo -e 'nameserver 1.1.1.1\\nnameserver 8.8.8.8' | sudo tee /etc/resolv.conf > /dev/null",
-                desc="Setze temporäre DNS Server"
-            )
+            
+            # Write resolv.conf via tempfile (reliable across all shells)
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".conf", delete=False) as f:
+                f.write("nameserver 1.1.1.1\nnameserver 8.8.8.8\n")
+                tmp_resolv = f.name
+            run_command(f"sudo mv {tmp_resolv} /etc/resolv.conf", desc="Setze DNS Server (1.1.1.1, 8.8.8.8)")
+            
+            # Verify DNS works
+            if not run_command("ping -c 1 -W 3 github.com", desc="Pruefe DNS Aufloesung", check=False):
+                console.print("[yellow]DNS scheint noch nicht zu funktionieren. Bitte /etc/resolv.conf pruefen.[/yellow]")
         else:
-            console.print("[yellow]⚠️  Port 53 könnte blockiert sein. DNS Server startet ggf. nicht.[/yellow]")
+            console.print("[yellow]Port 53 koennte blockiert sein. DNS Server startet ggf. nicht.[/yellow]")
     else:
         console.print("[green]systemd-resolved ist nicht aktiv - Port 53 ist frei.[/green]")
     
@@ -383,7 +389,7 @@ def install_dns_server():
         f"sudo wget -O {install_dir}/docker-compose.yml '{BASE_URL}/docker-compose.yml'",
         desc="Lade docker-compose.yml"
     ):
-        console.print("[bold red]Download fehlgeschlagen. Bitte Internetverbindung/DNS prüfen.[/bold red]")
+        console.print("[bold red]Download fehlgeschlagen. Bitte Internetverbindung/DNS pruefen.[/bold red]")
         raise typer.Exit(code=1)
     
     if not run_command(
@@ -396,7 +402,7 @@ def install_dns_server():
     # 5. Start containers
     console.print("\n[bold blue]Starte DNS Server...[/bold blue]")
     compose_cmd = get_docker_compose_cmd()
-    if run_command(f"cd {install_dir} && sudo {compose_cmd} up -d", desc=f"Führe {compose_cmd} up aus"):
+    if run_command(f"cd {install_dir} && sudo {compose_cmd} up -d", desc=f"Fuehre {compose_cmd} up aus"):
         host_ip = get_host_ip()
         console.print(f"\n[bold green]DNS Server erfolgreich installiert![/bold green]")
         console.print(f"Dashboard: [link]http://{host_ip}/[/link]")
@@ -404,3 +410,4 @@ def install_dns_server():
     else:
         console.print("[bold red]Fehler beim Starten des DNS Servers.[/bold red]")
         raise typer.Exit(code=1)
+
