@@ -25,39 +25,44 @@ def list_commands():
     from rich.table import Table
     from dockervm_cli.utils import console
     
-    table = Table(title="DockerVM CLI Befehlsübersicht")
+    table = Table(title="DockerVM CLI Befehlsübersicht", show_header=True, header_style="bold magenta")
     
+    table.add_column("Kategorie", style="dim", width=20)
     table.add_column("Befehl", style="cyan")
     table.add_column("Beschreibung", style="white")
     
     # System Updates
-    table.add_row("dvm update system", "Manuelles System-Update (apt update & upgrade)")
-    table.add_row("dvm update auto", "Automatische Updates aktivieren (Unattended-Upgrades)")
-    table.add_row("dvm update mail", "E-Mail Benachrichtigungen konfigurieren (SMTP)")
-    table.add_row("dvm update dockhand", "Dockhand Container aktualisieren")
+    table.add_row("System Management", "dvm update system", "Manuelles System-Update (apt update & upgrade)")
+    table.add_row("", "dvm update auto", "Automatische Updates aktivieren (Unattended-Upgrades)")
+    table.add_row("", "dvm update mail", "E-Mail Benachrichtigungen konfigurieren (SMTP)")
+    table.add_row("", "dvm update dockhand", "Dockhand Container aktualisieren")
+    table.add_section()
     
     # Installation
-    table.add_row("dvm install dockhand", "Dockhand (Portainer Alternative) installieren")
-    table.add_row("dvm install lazydocker", "Lazydocker (Terminal UI) installieren")
-    table.add_row("dvm install zsh", "ZSH & Oh My Zsh installieren")
-    table.add_row("dvm install container", "Container aus Template installieren (z.B. Unifi)")
-    table.add_row("dvm install dns-server", "DNS Server installieren (AdGuard + Technitium)")
+    table.add_row("Installation", "dvm install dockhand", "Dockhand (Portainer Alternative) installieren")
+    table.add_row("", "dvm install lazydocker", "Lazydocker (Terminal UI) installieren")
+    table.add_row("", "dvm install zsh", "ZSH & Oh My Zsh installieren")
+    table.add_row("", "dvm install container", "Container aus Template installieren (z.B. Unifi)")
+    table.add_row("", "dvm install dns-server", "DNS Server installieren (AdGuard + Technitium)")
+    table.add_section()
     
     # Network
-    table.add_row("dvm network ip", "Statische IP konfigurieren (Netplan)")
-    table.add_row("dvm network ipvlan", "IPVLAN Docker Netzwerk einrichten")
-    table.add_row("dvm network create", "Docker Netzwerk erstellen (für external: true)")
-    table.add_row("dvm network list", "Alle Docker Netzwerke anzeigen")
+    table.add_row("Netzwerk", "dvm network ip", "Statische IP konfigurieren (Netplan)")
+    table.add_row("", "dvm network ipvlan", "IPVLAN Docker Netzwerk einrichten")
+    table.add_row("", "dvm network create", "Docker Netzwerk erstellen (für external: true)")
+    table.add_row("", "dvm network list", "Alle Docker Netzwerke anzeigen")
+    table.add_section()
 
     # GPU
-    table.add_row("dvm gpu check", "NVIDIA GPU Erkennung prüfen")
-    table.add_row("dvm gpu install-driver", "NVIDIA Treiber installieren")
-    table.add_row("dvm gpu setup-docker", "Docker für GPU konfigurieren")
-    table.add_row("dvm gpu setup-persistence", "GPU Persistence Mode (Autostart) aktivieren")
+    table.add_row("GPU", "dvm gpu check", "NVIDIA GPU Erkennung prüfen")
+    table.add_row("", "dvm gpu install-driver", "NVIDIA Treiber installieren")
+    table.add_row("", "dvm gpu setup-docker", "Docker für GPU konfigurieren")
+    table.add_row("", "dvm gpu setup-persistence", "GPU Persistence Mode (Autostart) aktivieren")
+    table.add_section()
     
     # Misc
-    table.add_row("dvm update self", "Dieses CLI-Tool aktualisieren")
-    table.add_row("dvm commands", "Diese Liste anzeigen")
+    table.add_row("Sonstiges", "dvm update self", "Dieses CLI-Tool aktualisieren")
+    table.add_row("", "dvm commands", "Diese Liste anzeigen")
     
     console.print(table)
 
@@ -78,6 +83,7 @@ def main(
     
     if ctx.invoked_subcommand is None:
         import questionary
+        from questionary import Separator
         from dockervm_cli.utils import print_header
         
         print_header("DockerVM Dashboard")
@@ -88,23 +94,33 @@ def main(
                 "Was möchtest du tun?",
                 choices=[
                     "Befehlsübersicht anzeigen",
+                    Separator(),
+                    Separator("--- System Management ---"),
                     "System Update (Manuell)",
                     "Automatische Updates aktivieren",
                     "E-Mail Benachrichtigungen konfigurieren",
                     "Dockhand aktualisieren",
+                    Separator(),
+                    Separator("--- Installation ---"),
                     "Dockhand installieren",
                     "Lazydocker installieren",
                     "ZSH (inkl. Oh My Zsh) installieren",
                     "Container aus Template installieren",
                     "DNS Server installieren",
+                    Separator(),
+                    Separator("--- Netzwerk ---"),
                     "Netzwerk konfigurieren (Statische IP)",
                     "IPVLAN konfigurieren",
                     "Docker Netzwerk erstellen",
                     "Docker Netzwerke anzeigen",
+                    Separator(),
+                    Separator("--- GPU ---"),
                     "GPU prüfen",
                     "NVIDIA Treiber installieren",
                     "Docker GPU Setup",
                     "GPU Persistence aktivieren",
+                    Separator(),
+                    Separator("--- Sonstiges ---"),
                     "CLI aktualisieren",
                     "Beenden"
                 ]
