@@ -1,6 +1,6 @@
 
 import typer
-from dockervm_cli.utils import run_command, console, get_docker_compose_cmd, get_host_ip
+from dockervm_cli.utils import run_command, console, get_docker_compose_cmd, get_host_ip, DVM_BASE_PATH
 
 app = typer.Typer(help="Anwendungen und Dienste installieren.")
 
@@ -53,7 +53,7 @@ def install_dockhand():
         raise typer.Exit(code=1)
         
     # Prepare directory
-    install_dir = "/mnt/volumes/dockhand"
+    install_dir = f"{DVM_BASE_PATH}/dockhand"
     run_command(f"sudo mkdir -p {install_dir}", desc=f"Erstelle Installationsverzeichnis: {install_dir}")
     
     # Docker Compose Content
@@ -85,9 +85,11 @@ def install_dockhand():
     
     # Write docker-compose.yml
     try:
-        with open("docker-compose.yml", "w") as f:
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
             f.write(compose_content)
-        run_command(f"sudo mv docker-compose.yml {install_dir}/docker-compose.yml", desc="Schreibe docker-compose.yml")
+            tmp_compose = f.name
+        run_command(f"sudo mv {tmp_compose} {install_dir}/docker-compose.yml", desc="Schreibe docker-compose.yml")
     except Exception as e:
         console.print(f"[bold red]Fehler beim Schreiben der Konfiguration: {e}[/bold red]")
         raise typer.Exit(code=1)
@@ -213,18 +215,13 @@ def install_container():
     console.print("[bold blue]Container Installation aus Template[/bold blue]")
     
     # 1. Find Templates
-    # Assuming standard package structure: dockervm_cli/templates
+    # Resolve relative to the package location (works from any CWD)
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     templates_dir = os.path.join(base_dir, "templates")
     
     if not os.path.isdir(templates_dir):
-        # Fallback for development / running from source root without install
-        # Try local ./dockervm_cli/templates if running from repo root
-        if os.path.isdir("dockervm_cli/templates"):
-            templates_dir = "dockervm_cli/templates"
-        else:
-            console.print(f"[bold red]Template-Verzeichnis nicht gefunden: {templates_dir}[/bold red]")
-            raise typer.Exit(code=1)
+        console.print(f"[bold red]Template-Verzeichnis nicht gefunden: {templates_dir}[/bold red]")
+        raise typer.Exit(code=1)
             
     # List subdirectories
     templates = [d for d in os.listdir(templates_dir) if os.path.isdir(os.path.join(templates_dir, d))]
@@ -270,7 +267,7 @@ def install_container():
                 user_env_values[key] = value
                 
     # 4. Installation Directory
-    default_install_dir = f"/mnt/volumes/{selected_template}"
+    default_install_dir = f"{DVM_BASE_PATH}/{selected_template}"
     install_dir = questionary.text("Installationsverzeichnis:", default=default_install_dir).ask()
     
     if os.path.exists(install_dir):
@@ -286,37 +283,36 @@ def install_container():
     # We use sudo cp via utils.run_command or just python shutil if we have permissions?
     # Better use sudo for /mnt/volumes
     
-    # Temporary file approach for write/copy
+    # Use tempfile for CWD-independent tmp file handling
     try:
+        import tempfile
+        
         # Write new .env
-        with open(".env.tmp", "w") as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".env", delete=False) as f:
             for k, v in user_env_values.items():
                 f.write(f"{k}={v}\n")
+            tmp_env = f.name
         
-        run_command(f"sudo mv .env.tmp {install_dir}/.env", desc="Schreibe .env Konfiguration")
+        run_command(f"sudo mv {tmp_env} {install_dir}/.env", desc="Schreibe .env Konfiguration")
         
         # Copy docker-compose.yml
-        # Read content and write to tmp, then move
         with open(compose_path, "r") as f:
             compose_content = f.read()
             
-        with open("docker-compose.yml.tmp", "w") as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
             f.write(compose_content)
+            tmp_compose = f.name
             
-        run_command(f"sudo mv docker-compose.yml.tmp {install_dir}/docker-compose.yml", desc="Kopiere docker-compose.yml")
+        run_command(f"sudo mv {tmp_compose} {install_dir}/docker-compose.yml", desc="Kopiere docker-compose.yml")
         
         # Start container
         compose_cmd = get_docker_compose_cmd()
         if run_command(f"cd {install_dir} && sudo {compose_cmd} up -d", desc="Starte Container"):
             host_ip = get_host_ip()
             console.print(f"[bold green]{selected_template} erfolgreich installiert![/bold green]")
-            # Try to guess port from compose if possible? For now just show IP
             console.print(f"Zugriff unter: [link]http://{host_ip}[/link] (Port siehe Template)")
         else:
             console.print(f"[bold red]Fehler beim Starten des Containers.[/bold red]")
             
     except Exception as e:
         console.print(f"[bold red]Systemfehler: {e}[/bold red]")
-        # Cleanup tmp files
-        if os.path.exists(".env.tmp"): os.remove(".env.tmp")
-        if os.path.exists("docker-compose.yml.tmp"): os.remove("docker-compose.yml.tmp")

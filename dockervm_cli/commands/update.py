@@ -2,7 +2,7 @@
 import typer
 import os
 import subprocess
-from dockervm_cli.utils import run_command, console, get_docker_compose_cmd
+from dockervm_cli.utils import run_command, console, get_docker_compose_cmd, DVM_BASE_PATH
 
 app = typer.Typer(help="System- und Anwendungs-Updates verwalten.")
 
@@ -189,17 +189,20 @@ def configure_unattended():
     # 2. Write Configurations
     console.print("[blue]Schreibe Konfigurationen...[/blue]")
     try:
+        import tempfile
         # Write 20auto-upgrades
-        with open("20auto-upgrades.tmp", "w") as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".conf", delete=False) as f:
             f.write(config_content)
-        run_command("sudo mv 20auto-upgrades.tmp /etc/apt/apt.conf.d/20auto-upgrades", desc="Schreibe Auto-Upgrade Config")
+            tmp_auto = f.name
+        run_command(f"sudo mv {tmp_auto} /etc/apt/apt.conf.d/20auto-upgrades", desc="Schreibe Auto-Upgrade Config")
         
         # Write Blacklist
         if blacklist_regex:
             blacklist_content = 'Unattended-Upgrade::Package-Blacklist {\n' + '\n    '.join(blacklist_regex) + '\n};\n'
-            with open("blacklist.tmp", "w") as f:
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".conf", delete=False) as f:
                 f.write(blacklist_content)
-            run_command("sudo mv blacklist.tmp /etc/apt/apt.conf.d/51unattended-upgrades-blacklist", desc="Schreibe Blacklist Config")
+                tmp_blacklist = f.name
+            run_command(f"sudo mv {tmp_blacklist} /etc/apt/apt.conf.d/51unattended-upgrades-blacklist", desc="Schreibe Blacklist Config")
         else:
             # Ensure file is empty/removed if no blacklist
             if os.path.exists("/etc/apt/apt.conf.d/51unattended-upgrades-blacklist"):
@@ -225,7 +228,7 @@ def update_dockhand():
     """
     import os
     
-    install_dir = "/mnt/volumes/dockhand"
+    install_dir = f"{DVM_BASE_PATH}/dockhand"
     
     if not os.path.isdir(install_dir):
         console.print(f"[bold red]Dockhand Verzeichnis nicht gefunden unter {install_dir}. Ist es installiert?[/bold red]")
@@ -289,10 +292,12 @@ password       {smtp_pass}
     
     # Write msmtprc
     try:
-        with open("msmtprc.tmp", "w") as f:
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".conf", delete=False) as f:
             f.write(msmtp_config)
+            tmp_msmtp = f.name
             
-        run_command("sudo mv msmtprc.tmp /etc/msmtprc", desc="Schreibe SMTP Konfiguration")
+        run_command(f"sudo mv {tmp_msmtp} /etc/msmtprc", desc="Schreibe SMTP Konfiguration")
         run_command("sudo chmod 600 /etc/msmtprc", desc="Setze Berechtigungen (600)")
         run_command("sudo ln -sf /usr/bin/msmtp /usr/sbin/sendmail", desc="Verlinke sendmail zu msmtp")
     except Exception as e:
@@ -311,9 +316,10 @@ password       {smtp_pass}
         apt_conf_content += 'Unattended-Upgrade::MailOnlyOnError "false";\n'
         
     try:
-        with open("51unattended-upgrades-email.tmp", "w") as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".conf", delete=False) as f:
             f.write(apt_conf_content)
-        run_command("sudo mv 51unattended-upgrades-email.tmp /etc/apt/apt.conf.d/51unattended-upgrades-email", desc="Aktiviere Unattended-Upgrades Benachrichtigung")
+            tmp_email = f.name
+        run_command(f"sudo mv {tmp_email} /etc/apt/apt.conf.d/51unattended-upgrades-email", desc="Aktiviere Unattended-Upgrades Benachrichtigung")
     except Exception as e:
          console.print(f"[bold red]Fehler: {e}[/bold red]")
          
