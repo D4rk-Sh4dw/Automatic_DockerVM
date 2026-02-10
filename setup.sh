@@ -59,9 +59,19 @@ echo "Installing DVM CLI..."
 pip install --upgrade pip
 pip install .
 
-# 5. Save repo path for 'dvm update self'
+# 5. Save repo path & Configure Base Path
 sudo mkdir -p /etc/dvm
 echo "$REPO_DIR" | sudo tee /etc/dvm/repo_path > /dev/null
+
+# Prompt for Installation Base Directory
+read -p "Where should containers be installed? [Default: /mnt/volumes]: " INSTALL_DIR
+INSTALL_DIR=${INSTALL_DIR:-/mnt/volumes}
+echo "$INSTALL_DIR" | sudo tee /etc/dvm/base_path > /dev/null
+echo "Base path set to: $INSTALL_DIR"
+
+# Ensure base directory exists
+sudo mkdir -p "$INSTALL_DIR"
+
 
 # 6. Create wrapper scripts with absolute paths
 echo "Creating global commands 'dvm' and 'dockervm'..."

@@ -8,7 +8,12 @@ from rich.panel import Panel
 console = Console()
 
 # Zentraler Basispfad für alle DVM Installationen
-DVM_BASE_PATH = "/mnt/volumes"
+import os
+try:
+    with open("/etc/dvm/base_path", "r") as f:
+        DVM_BASE_PATH = f.read().strip()
+except Exception:
+    DVM_BASE_PATH = "/mnt/volumes"
 
 def run_command(command: str, desc: str = None, error_msg: str = None, check: bool = True) -> bool:
     """
