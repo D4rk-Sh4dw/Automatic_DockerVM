@@ -94,13 +94,18 @@ def update_system():
 @app.command("self")
 def update_self():
     """
-    Aktualisiert das dockervm CLI Tool selbst via Git und reinstalliert es.
+    Aktualisiert das dvm CLI Tool selbst via Git und reinstalliert es.
     """
-    console.print("[bold blue]Aktualisiere dockervm CLI...[/bold blue]")
+    import os
     
-    if run_command("git pull", desc="Ziehe neueste Änderungen von Git"):
+    # Resolve repo root from package location (works from any CWD)
+    repo_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    
+    console.print(f"[bold blue]Aktualisiere dvm CLI... ({repo_dir})[/bold blue]")
+    
+    if run_command(f"cd {repo_dir} && git pull", desc="Ziehe neueste Änderungen von Git"):
         # Re-install the package to apply changes
-        if run_command("pip install .", desc="Installiere aktualisiertes Paket"):
+        if run_command(f"cd {repo_dir} && pip install .", desc="Installiere aktualisiertes Paket"):
              console.print("[bold green]Update erfolgreich! Bitte starten Sie das CLI neu.[/bold green]")
         else:
              console.print("[bold red]Fehler bei der Installation des Updates.[/bold red]")
