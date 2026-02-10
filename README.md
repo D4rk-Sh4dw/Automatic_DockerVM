@@ -32,3 +32,5 @@ Oder nutzen Sie direkte Befehle:
 ```bash
 dvm commands  # Zeigt eine Übersicht aller Befehle
 ```
+Eine Erklärung aller Punkte findet ihr hier:
+https://github.com/D4rk-Sh4dw/Automatic_DockerVM/blob/main/COMMANDS_DE.md
