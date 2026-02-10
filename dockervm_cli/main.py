@@ -36,7 +36,6 @@ def list_commands():
     table.add_row("dvm update dockhand", "Dockhand Container aktualisieren")
     
     # Installation
-    table.add_row("dvm install docker", "Docker Engine & Compose installieren")
     table.add_row("dvm install dockhand", "Dockhand (Portainer Alternative) installieren")
     table.add_row("dvm install lazydocker", "Lazydocker (Terminal UI) installieren")
     table.add_row("dvm install zsh", "ZSH & Oh My Zsh installieren")
@@ -86,7 +85,6 @@ def main(
                     "Automatische Updates aktivieren",
                     "E-Mail Benachrichtigungen konfigurieren",
                     "Dockhand aktualisieren",
-                    "Docker installieren",
                     "Dockhand installieren",
                     "Lazydocker installieren",
                     "ZSH (inkl. Oh My Zsh) installieren",
@@ -111,8 +109,6 @@ def main(
                 update.configure_mail()
             elif choice == "Dockhand aktualisieren":
                 update.update_dockhand()
-            elif choice == "Docker installieren":
-                install.install_docker()
             elif choice == "Dockhand installieren":
                 install.install_dockhand()
             elif choice == "Lazydocker installieren":
