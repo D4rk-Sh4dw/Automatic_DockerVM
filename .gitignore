@@ -9,7 +9,7 @@
 !requirements.txt
 !README.md
 !.gitignore
-!.COMMANDS_DE.md
+!COMMANDS_DE.md
 # Python cruft (just in case)
 __pycache__/
 *.pyc
