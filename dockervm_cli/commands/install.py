@@ -66,7 +66,7 @@ def install_dockhand():
       POSTGRES_PASSWORD: {pg_password}
       POSTGRES_DB: {pg_db}
     volumes:
-      - /mnt/volumes/postgres_data:/var/lib/postgresql/data
+      - /mnt/volumes/dockhand/postgres_data:/var/lib/postgresql/data
     restart: always
 
   dockhand:
@@ -77,7 +77,8 @@ def install_dockhand():
       DATABASE_URL: postgres://{pg_user}:{pg_password}@postgres:5432/{pg_db}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - /mnt/volumes/dockhand_data:/app/data
+      - /mnt/volumes/dockhand/dockhand_data:/app/data
+      - /mnt/volumes:/mnt/volumes
     depends_on:
       - postgres
     restart: always
