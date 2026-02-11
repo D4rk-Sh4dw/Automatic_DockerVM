@@ -66,7 +66,7 @@ def install_dockhand():
       POSTGRES_PASSWORD: {pg_password}
       POSTGRES_DB: {pg_db}
     volumes:
-      - /mnt/volumes/postgres_data:/var/lib/postgresql/data
+      - /mnt/volumes/dockhand/postgres_data:/var/lib/postgresql/data
     restart: always
 
   dockhand:
@@ -77,7 +77,8 @@ def install_dockhand():
       DATABASE_URL: postgres://{pg_user}:{pg_password}@postgres:5432/{pg_db}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - /mnt/volumes/dockhand_data:/app/data
+      - /mnt/volumes/dockhand/dockhand_data:/app/data
+      - /mnt/volumes:/mnt/volumes
     depends_on:
       - postgres
     restart: always
@@ -127,79 +128,109 @@ def install_lazydocker():
 @app.command("zsh")
 def install_zsh():
     """
-    Installiert ZSH und optional Oh My Zsh + Plugins.
+    Installiert ZSH, Oh My Zsh, Powerlevel10k und nützliche Plugins.
+    Folgt dem Guide: Setup Zsh on Ubuntu (How and Why).
     """
     import questionary
     import os
+    import re
     
-    console.print("[bold blue]Installation von ZSH & Oh My Zsh[/bold blue]")
+    console.print("[bold blue]Installation von ZSH & Oh My Zsh (Ultimate Edition)[/bold blue]")
     
-    # 1. Install ZSH and dependencies
-    if not run_command("sudo apt update && sudo apt install -y zsh git curl fonts-powerline", desc="Installiere ZSH Basispakete"):
+    # 1. System Update & Install Packages
+    # Added dconf-cli as requested
+    console.print("[blue]1. Aktualisiere System und installiere Pakete...[/blue]")
+    if not run_command("sudo apt update && sudo apt install -y zsh git curl fonts-powerline dconf-cli", desc="Installiere ZSH, Git, Fonts, dconf-cli"):
         raise typer.Exit(code=1)
         
-    console.print("[green]ZSH installiert.[/green]")
+    console.print("[green]Pakete installiert.[/green]")
     
     # 2. Install Oh My Zsh
-    if questionary.confirm("Möchtest du 'Oh My Zsh' installieren? (Empfohlen)", default=True).ask():
+    if questionary.confirm("Möchtest du 'Oh My Zsh' installieren? (Erforderlich für Setup)", default=True).ask():
         # Check if already installed
         if os.path.exists(os.path.expanduser("~/.oh-my-zsh")):
              console.print("[yellow]Oh My Zsh ist bereits installiert.[/yellow]")
         else:
-            # Run install script (unattended to avoid exit, but we want to configure it)
-            # We use --unattended to prevent it from launching zsh immediately and stopping our script
+            # Run install script unattended
+            console.print("[blue]2. Installiere Oh My Zsh...[/blue]")
             cmd = 'sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended'
             if run_command(cmd, desc="Installiere Oh My Zsh"):
                 console.print("[green]Oh My Zsh installiert![/green]")
             else:
                 console.print("[red]Fehler bei der Installation von Oh My Zsh.[/red]")
+                raise typer.Exit(code=1)
     
-    # 3. Plugins (Autosuggestions & Syntax Highlighting)
-    if questionary.confirm("Sollen nützliche Plugins (Autosuggestions, Syntax Highlighting) installiert werden?", default=True).ask():
-        zsh_custom = os.path.expanduser("~/.oh-my-zsh/custom")
-        
-        # Autosuggestions
-        if not os.path.exists(f"{zsh_custom}/plugins/zsh-autosuggestions"):
-            run_command(f"git clone https://github.com/zsh-users/zsh-autosuggestions {zsh_custom}/plugins/zsh-autosuggestions", desc="Klone zsh-autosuggestions")
-            
-        # Syntax Highlighting
-        if not os.path.exists(f"{zsh_custom}/plugins/zsh-syntax-highlighting"):
-            run_command(f"git clone https://github.com/zsh-users/zsh-syntax-highlighting.git {zsh_custom}/plugins/zsh-syntax-highlighting", desc="Klone zsh-syntax-highlighting")
-            
-        console.print("\n[bold yellow]Hinweis:[/bold yellow] Um die Plugins zu aktivieren, füge sie in deiner [bold]~/.zshrc[/bold] hinzu:")
-        console.print("plugins=(git zsh-autosuggestions zsh-syntax-highlighting)")
-        
-        # Try to patch .zshrc automatically?
-        if questionary.confirm("Soll ich die Plugins automatisch in die ~/.zshrc eintragen?", default=True).ask():
-            zshrc_path = os.path.expanduser("~/.zshrc")
-            try:
-                with open(zshrc_path, "r") as f:
-                    content = f.read()
-                
-                # Simple replacement for default config
-                if "plugins=(git)" in content:
-                    new_content = content.replace("plugins=(git)", "plugins=(git zsh-autosuggestions zsh-syntax-highlighting)")
-                    with open(zshrc_path, "w") as f:
-                        f.write(new_content)
-                    console.print("[green]Plugins in .zshrc eingetragen![/green]")
-                else:
-                     console.print("[yellow]Konnte 'plugins=(git)' nicht finden. Bitte manuell anpassen.[/yellow]")
-            except Exception as e:
-                console.print(f"[red]Fehler beim Bearbeiten der .zshrc: {e}[/red]")
+    zsh_custom = os.path.expanduser("~/.oh-my-zsh/custom")
 
-    # 4. Set Default Shell
-    if questionary.confirm("Möchtest du ZSH als Standard-Shell setzen?", default=True).ask():
-        # chsh requires password usually, run_command might prompt or fail if non-interactive sudo?
-        # chsh -s $(which zsh) usually works for current user.
-        user = os.environ.get("USER")
-        zsh_path = "/usr/bin/zsh" # Standard path
+    # 3. Install Powerlevel10k Theme
+    p10k_path = f"{zsh_custom}/themes/powerlevel10k"
+    if not os.path.exists(p10k_path):
+        console.print("[blue]3. Installiere Powerlevel10k Theme...[/blue]")
+        run_command(f"git clone --depth=1 https://github.com/romkatv/powerlevel10k.git {p10k_path}", desc="Klone Powerlevel10k")
+    else:
+        console.print("[yellow]Powerlevel10k ist bereits installiert.[/yellow]")
+
+    # 4. Install Plugins
+    console.print("[blue]4. Installiere Plugins (Autosuggestions & Syntax Highlighting)...[/blue]")
+    
+    # Autosuggestions
+    if not os.path.exists(f"{zsh_custom}/plugins/zsh-autosuggestions"):
+        run_command(f"git clone https://github.com/zsh-users/zsh-autosuggestions {zsh_custom}/plugins/zsh-autosuggestions", desc="Klone zsh-autosuggestions")
         
-        console.print("[blue]Setze Standard-Shell... (Passwort ggf. erforderlich)[/blue]")
-        # We try without sudo first for current user
-        if run_command(f"sudo chsh -s {zsh_path} {user}", desc=f"Setze Shell für {user}"):
-            console.print("[bold green]Standard-Shell geändert! Bitte neu anmelden.[/bold green]")
+    # Syntax Highlighting
+    if not os.path.exists(f"{zsh_custom}/plugins/zsh-syntax-highlighting"):
+        run_command(f"git clone https://github.com/zsh-users/zsh-syntax-highlighting.git {zsh_custom}/plugins/zsh-syntax-highlighting", desc="Klone zsh-syntax-highlighting")
+
+    # 5. Configure .zshrc
+    console.print("[blue]5. Konfiguriere .zshrc...[/blue]")
+    if questionary.confirm("Soll ich die .zshrc automatisch anpassen (Theme & Plugins)?", default=True).ask():
+        zshrc_path = os.path.expanduser("~/.zshrc")
+        try:
+            with open(zshrc_path, "r") as f:
+                content = f.read()
+            
+            # Update Theme
+            # Replace ZSH_THEME="..." with ZSH_THEME="powerlevel10k/powerlevel10k"
+            if "powerlevel10k/powerlevel10k" not in content:
+                content = re.sub(r'ZSH_THEME=".*?"', 'ZSH_THEME="powerlevel10k/powerlevel10k"', content)
+                console.print("[green]Theme auf Powerlevel10k gesetzt.[/green]")
+
+            # Update Plugins
+            # Replace plugins=(...) with plugins=(git zsh-autosuggestions zsh-syntax-highlighting)
+            # We look for the standard plugins=(git) or similar
+            if "plugins=(git)" in content:
+                content = content.replace("plugins=(git)", "plugins=(git zsh-autosuggestions zsh-syntax-highlighting)")
+                console.print("[green]Plugins aktiviert.[/green]")
+            elif "zsh-autosuggestions" not in content:
+                # Fallback: Try regex if it's not the default string
+                console.print("[yellow]Konnte 'plugins=(git)' nicht exakt finden. Füge Plugins manuell hinzu oder prüfe .zshrc.[/yellow]")
+
+            with open(zshrc_path, "w") as f:
+                f.write(content)
+            
+            console.print("[green].zshrc erfolgreich aktualisiert![/green]")
+            
+        except Exception as e:
+            console.print(f"[red]Fehler beim Bearbeiten der .zshrc: {e}[/red]")
+
+    # 6. Set Default Shell
+    if questionary.confirm("Möchtest du ZSH als Standard-Shell setzen?", default=True).ask():
+        user = os.environ.get("USER")
+        zsh_path = "/usr/bin/zsh"
+        
+        console.print(f"[blue]Setze Standard-Shell für {user}...[/blue]")
+        # chsh -s /usr/bin/zsh
+        # We try to run it directly for the user. It might ask for password.
+        if run_command(f"sudo chsh -s {zsh_path} {user}", desc=f"Setze Shell auf {zsh_path}"):
+             console.print("[bold green]Standard-Shell geändert! Bitte ab- und wieder anmelden.[/bold green]")
         else:
-             console.print("[bold red]Konnte Shell nicht ändern. Bitte manuell 'chsh -s $(which zsh)' ausführen.[/bold red]")
+             console.print("[bold red]Konnte Shell nicht ändern. Bitte manuell 'chsh -s /usr/bin/zsh' ausführen.[/bold red]")
+
+    console.print("\n[bold yellow]WICHTIG:[/bold yellow]")
+    console.print("1. Schließe dieses Terminal und öffne ein neues.")
+    console.print("2. Beim ersten Start wirst du gefragt, Powerlevel10k zu konfigurieren.")
+    console.print("   Falls nicht, tippe: [bold]p10k configure[/bold]")
+    console.print("3. Viel Spaß mit deiner neuen Shell! 🚀")
 
 
 @app.command("container")
