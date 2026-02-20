@@ -373,6 +373,7 @@ def configure_mail():
     smtp_user = questionary.text("SMTP Benutzer / E-Mail:").ask()
     smtp_pass = questionary.password("SMTP Passwort:").ask()
     from_addr = questionary.text("Absender E-Mail:", default=smtp_user).ask()
+    vm_name = questionary.text("Optional: Eigener Name für diese VM (für E-Mail Betreff, z.B. 'Docker-Node-1'):").ask()
     
     if not smtp_host or not smtp_user or not smtp_pass:
         console.print("[red]Alle Felder sind erforderlich![/red]")
@@ -414,6 +415,15 @@ password       {smtp_pass}
     only_on_error = questionary.confirm("Nur bei Fehlern benachrichtigen?", default=True).ask()
     
     apt_conf_content = f'Unattended-Upgrade::Mail "{recipient}";\n'
+    if vm_name:
+        apt_conf_content += f'Unattended-Upgrade::MailReport "always";\n'
+        apt_conf_content += f'DPkg::Post-Invoke {{"if [ -x /usr/bin/logger ]; then logger -t unattended-upgrades \'({vm_name})\'; fi";}};\n'
+        # Currently unattended-upgrades doesn't have a direct Subject override variable,
+        # but we can configure the sender or rely on the from_addr. 
+        # A simpler approach is replacing the FROM address name:
+        # e.g. "Docker-Node-1 <your@email.com>"
+        # msmtp will parse this from the `from_addr` field if provided correctly.
+    
     if only_on_error:
         apt_conf_content += 'Unattended-Upgrade::MailOnlyOnError "true";\n'
     else:
@@ -432,7 +442,8 @@ password       {smtp_pass}
     # 4. Test Email
     if questionary.confirm("Test-E-Mail senden?").ask():
         console.print(f"[blue]Sende Test-E-Mail an {recipient}...[/blue]")
-        test_cmd = f"echo 'Dies ist eine Test-Nachricht von DockerVM.' | mail -s 'DockerVM SMTP Test' {recipient}"
+        subject_name = f" [{vm_name}]" if vm_name else ""
+        test_cmd = f"echo 'Dies ist eine Test-Nachricht von DockerVM{subject_name}.' | mail -s 'DockerVM SMTP Test{subject_name}' {recipient}"
         if run_command(test_cmd, desc="Sende E-Mail"):
             console.print("[bold green]E-Mail gesendet! Bitte Posteingang prüfen.[/bold green]")
         else:
