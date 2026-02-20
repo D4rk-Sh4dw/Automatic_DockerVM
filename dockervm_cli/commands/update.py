@@ -447,8 +447,24 @@ password       {smtp_pass}
     if questionary.confirm("Test-E-Mail senden?").ask():
         console.print(f"[blue]Sende Test-E-Mail an {recipient}...[/blue]")
         subject_name = f" [{vm_name}]" if vm_name else ""
-        test_cmd = f"echo 'Dies ist eine Test-Nachricht von DockerVM{subject_name}.' | mail -s 'DockerVM SMTP Test{subject_name}' {recipient}"
-        if run_command(test_cmd, desc="Sende E-Mail"):
-            console.print("[bold green]E-Mail gesendet! Bitte Posteingang prüfen.[/bold green]")
-        else:
-            console.print("[bold red]Fehler beim Senden. Bitte Serverdaten prüfen.[/bold red]")
+        
+        email_content = f"""To: {recipient}
+From: {from_addr}
+Subject: DockerVM SMTP Test{subject_name}
+
+Dies ist eine Test-Nachricht von DockerVM{subject_name}.
+"""
+        try:
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".eml", delete=False) as f:
+                f.write(email_content)
+                tmp_email_file = f.name
+                
+            test_cmd = f"cat {tmp_email_file} | sendmail -t"
+            if run_command(test_cmd, desc="Sende E-Mail"):
+                console.print("[bold green]E-Mail gesendet! Bitte Posteingang (und Spam-Ordner) prüfen.[/bold green]")
+            else:
+                console.print("[bold red]Fehler beim Senden. Bitte Serverdaten prüfen.[/bold red]")
+                
+            run_command(f"rm {tmp_email_file}", desc="Entferne temporäre E-Mail Datei", check=False)
+        except Exception as e:
+            console.print(f"[bold red]Fehler beim Erstellen der Test-E-Mail: {e}[/bold red]")
