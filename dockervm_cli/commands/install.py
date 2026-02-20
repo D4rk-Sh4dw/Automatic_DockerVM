@@ -442,3 +442,19 @@ def install_dns_server():
         console.print("[bold red]Fehler beim Starten des DNS Servers.[/bold red]")
         raise typer.Exit(code=1)
 
+
+@app.command("ncdu")
+def install_ncdu():
+    """
+    Installiert ncdu (NCurses Disk Usage).
+    """
+    console.print("[bold blue]Installiere ncdu...[/bold blue]")
+    
+    if run_command("sudo apt update && sudo apt install -y ncdu", desc="Installiere ncdu"):
+        console.print("[bold green]ncdu erfolgreich installiert![/bold green]")
+        console.print("Starte es mit dem Befehl: [bold cyan]ncdu[/bold cyan]")
+    else:
+        console.print("[bold red]Fehler bei der Installation von ncdu.[/bold red]")
+        raise typer.Exit(code=1)
+
+

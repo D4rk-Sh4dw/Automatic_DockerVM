@@ -78,6 +78,12 @@ Installiert Lazydocker, ein Terminal-UI für Docker.
   1. Lädt das offizielle Installationsskript und führt es aus.
   2. Installiert das Binary nach `/usr/local/bin`.
 
+### `dvm install ncdu`
+Installiert ncdu (NCurses Disk Usage), einen Disk Usage Analyzer.
+- **Was passiert:**
+  1. Führt `apt update` aus.
+  2. Installiert `ncdu` über den Paketmanager.
+
 ### `dvm install zsh`
 Richtet eine moderne Shell-Umgebung ein.
 - **Was passiert:**
