@@ -3,7 +3,7 @@ import typer
 from typing import Optional
 from dockervm_cli.utils import console
 
-from dockervm_cli.commands import update, install, network, gpu
+from dockervm_cli.commands import update, install, network, gpu, disk
 
 app = typer.Typer(
     name="dvm",
@@ -16,6 +16,7 @@ app.add_typer(update.app, name="update")
 app.add_typer(install.app, name="install")
 app.add_typer(network.app, name="network")
 app.add_typer(gpu.app, name="gpu")
+app.add_typer(disk.app, name="disk")
 
 @app.command("commands")
 def list_commands():
@@ -59,6 +60,10 @@ def list_commands():
     table.add_row("", "dvm gpu install-driver", "NVIDIA Treiber installieren")
     table.add_row("", "dvm gpu setup-docker", "Docker für GPU konfigurieren")
     table.add_row("", "dvm gpu setup-persistence", "GPU Persistence Mode (Autostart) aktivieren")
+    table.add_section()
+    
+    # Disk
+    table.add_row("Laufwerke", "dvm disk mount", "Neue (unformatierte) Festplatte (vdisk) formatieren und einbinden")
     table.add_section()
     
     # Misc
@@ -122,6 +127,9 @@ def main(
                     "Docker GPU Setup",
                     "GPU Persistence aktivieren",
                     Separator(),
+                    Separator("--- Laufwerke ---"),
+                    "Festplatte formatieren & einbinden",
+                    Separator(),
                     Separator("--- Sonstiges ---"),
                     "CLI aktualisieren",
                     "Beenden"
@@ -166,6 +174,8 @@ def main(
                 gpu.setup_docker()
             elif choice == "GPU Persistence aktivieren":
                 gpu.setup_persistence()
+            elif choice == "Festplatte formatieren & einbinden":
+                disk.mount_disk()
             elif choice == "CLI aktualisieren":
                 update.update_self()
             elif choice == "Beenden":

@@ -167,6 +167,21 @@ Aktiviert den Persistence Mode (verhindert, dass der Treiber entladen wird, wenn
 
 ---
 
+## 💾 Laufwerke (`dvm disk`)
+
+Verwaltung von virtuellen Festplatten (vdisks) und Laufwerken.
+
+### `dvm disk mount`
+Formatiert eine neue, unbenutzte Festplatte und bindet sie dauerhaft ins System ein.
+- **Was passiert:**
+  1. Sucht nach nicht-eingebundenen Festplatten (`lsblk`) und fragt, welche formatiert werden soll.
+  2. Formatiert die gewählte Festplatte mit dem `ext4` Dateisystem (Achtung: Datenverlust!).
+  3. Fragt den gewünschten Mountpoint ab (z.B. `/mnt/data`).
+  4. Ermittelt die UUID der Festplatte und trägt sie zusammen mit dem Mountpoint in die `/etc/fstab` ein.
+  5. Bindet die Festplatte im Laufenden Betrieb über `mount -a` ein und setzt Berechtigungen für den aktuellen Benutzer.
+
+---
+
 ## ℹ️ Sonstiges
 
 ### `dvm commands`
