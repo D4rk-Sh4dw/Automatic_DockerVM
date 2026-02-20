@@ -82,7 +82,7 @@ def mount_disk():
     # 3. Mount-Point abfragen
     mount_point = questionary.text(
         "Wo soll die Festplatte eingebunden werden (z.B. /mnt/data)?",
-        default="/mnt/vdisk"
+        default="/mnt/volumes"
     ).ask()
     
     if not mount_point:
