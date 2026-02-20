@@ -405,6 +405,10 @@ password       {smtp_pass}
         run_command(f"sudo mv {tmp_msmtp} /etc/msmtprc", desc="Schreibe SMTP Konfiguration")
         run_command("sudo chmod 600 /etc/msmtprc", desc="Setze Berechtigungen (600)")
         run_command("sudo ln -sf /usr/bin/msmtp /usr/sbin/sendmail", desc="Verlinke sendmail zu msmtp")
+        
+        # Create log file and ensure permissions so regular users can send mail via msmtp
+        run_command("sudo touch /var/log/msmtp.log", desc="Erstelle Log-Datei")
+        run_command("sudo chmod 666 /var/log/msmtp.log", desc="Setze Rechte für Log-Datei")
     except Exception as e:
         console.print(f"[bold red]Fehler beim Speichern der Konfiguration: {e}[/bold red]")
         raise typer.Exit(code=1)
