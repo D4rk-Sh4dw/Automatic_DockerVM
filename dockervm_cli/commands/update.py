@@ -113,7 +113,8 @@ def update_self():
     
     console.print(f"[bold blue]Aktualisiere dvm CLI... ({repo_dir})[/bold blue]")
     
-    if run_command(f"cd {repo_dir} && git pull", desc="Ziehe neueste Änderungen von Git"):
+    update_cmd = f"cd {repo_dir} && git fetch origin && git reset --hard origin/main && git clean -fd"
+    if run_command(update_cmd, desc="Ziehe neueste Änderungen von Git (Erzwinge Sync mit main)"):
         # Use sys.executable to ensure we use the same python environment as the running script
         python_exe = sys.executable
         if run_command(f"cd {repo_dir} && {python_exe} -m pip install --upgrade --force-reinstall .", desc="Installiere aktualisiertes Paket"):
