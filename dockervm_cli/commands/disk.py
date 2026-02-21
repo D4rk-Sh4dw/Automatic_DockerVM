@@ -149,13 +149,33 @@ def mount_disk():
     if not mount_point:
         raise typer.Exit()
         
-    # 4. Formatieren (Ext4)
-    console.print(f"\n[blue]Formatiere {selected_disk} mit ext4...[/blue]")
-    if not run_command(f"sudo mkfs.ext4 -F {selected_disk}", desc="Formatiere Laufwerk"):
-        console.print("[bold red]Fehler beim Formatieren der Festplatte.[/bold red]")
+    # 4. Dateisystem abfragen
+    fstype = questionary.select(
+        "Welches Dateisystem soll verwendet werden?",
+        choices=["ext4", "xfs", "btrfs"]
+    ).ask()
+    
+    if not fstype:
+        raise typer.Exit()
+        
+    # 5. Formatieren
+    console.print(f"\n[blue]Formatiere {selected_disk} mit {fstype}...[/blue]")
+    if fstype == "xfs":
+        subprocess.run(["sudo", "apt-get", "update"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        run_command("sudo apt-get install -y xfsprogs", desc="Installiere xfsprogs", check=False)
+        format_cmd = f"sudo mkfs.xfs -f {selected_disk}"
+    elif fstype == "btrfs":
+        subprocess.run(["sudo", "apt-get", "update"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        run_command("sudo apt-get install -y btrfs-progs", desc="Installiere btrfs-progs", check=False)
+        format_cmd = f"sudo mkfs.btrfs -f {selected_disk}"
+    else:
+        format_cmd = f"sudo mkfs.ext4 -F {selected_disk}"
+
+    if not run_command(format_cmd, desc=f"Formatiere Laufwerk ({fstype})"):
+        console.print(f"[bold red]Fehler beim Formatieren der Festplatte mit {fstype}.[/bold red]")
         raise typer.Exit(code=1)
         
-    # 5. UUID ermitteln
+    # 6. UUID ermitteln
     try:
         uuid_result = subprocess.run(
             ['sudo', 'blkid', '-s', 'UUID', '-o', 'value', selected_disk],
@@ -166,11 +186,11 @@ def mount_disk():
         console.print(f"[bold red]Konnte UUID nicht ermitteln: {e}[/bold red]")
         raise typer.Exit(code=1)
         
-    # 6. Mountpoint erstellen
+    # 7. Mountpoint erstellen
     run_command(f"sudo mkdir -p {mount_point}", desc=f"Erstelle Mountpoint {mount_point}")
     
-    # 7. fstab Eintrag hinzufügen
-    fstab_entry = f"UUID={disk_uuid} {mount_point} ext4 defaults 0 2\n"
+    # 8. fstab Eintrag hinzufügen
+    fstab_entry = f"UUID={disk_uuid} {mount_point} {fstype} defaults 0 2\n"
     
     # Check if UUID already in fstab
     with open('/etc/fstab', 'r') as f:
@@ -190,7 +210,7 @@ def mount_disk():
     else:
         console.print("[yellow]Festplatte oder Mountpoint bereits in /etc/fstab vorhanden.[/yellow]")
 
-    # 8. Mounten
+    # 9. Mounten
     console.print(f"[blue]Binde Festplatte unter {mount_point} ein...[/blue]")
     if run_command("sudo mount -a", desc="Lade fstab neu und mounte"):
         # Zugriffsrechte anpassen (optional, aber hilfreich)

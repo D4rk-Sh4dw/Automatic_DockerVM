@@ -182,10 +182,11 @@ Verwaltung von virtuellen Festplatten (vdisks) und Laufwerken.
 Formatiert eine neue, unbenutzte Festplatte und bindet sie dauerhaft ins System ein.
 - **Was passiert:**
   1. Sucht nach nicht-eingebundenen Festplatten (`lsblk`) und fragt, welche formatiert werden soll.
-  2. Formatiert die gewählte Festplatte mit dem `ext4` Dateisystem (Achtung: Datenverlust!).
-  3. Fragt den gewünschten Mountpoint ab (z.B. `/mnt/data`).
-  4. Ermittelt die UUID der Festplatte und trägt sie zusammen mit dem Mountpoint in die `/etc/fstab` ein.
-  5. Bindet die Festplatte im Laufenden Betrieb über `mount -a` ein und setzt Berechtigungen für den aktuellen Benutzer.
+  2. Bietet eine Auswahl des gewünschten Dateisystems an (`ext4`, `xfs`, `btrfs`).
+  3. Formatiert die gewählte Festplatte mit dem gewählten Dateisystem (Achtung: Datenverlust!).
+  4. Fragt den gewünschten Mountpoint ab (z.B. `/mnt/data`).
+  5. Ermittelt die UUID der Festplatte und trägt sie zusammen mit dem Mountpoint in die `/etc/fstab` ein.
+  6. Bindet die Festplatte im Laufenden Betrieb über `mount -a` ein und setzt Berechtigungen für den aktuellen Benutzer.
 
 ### `dvm disk expand`
 Interaktive Möglichkeit, Speicher von Festplatten (vdisks/vhdx) zu erweitern, nachdem diese z.B. im Hypervisor vergrößert wurden.
