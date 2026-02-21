@@ -237,4 +237,42 @@ def docker_storage():
         console.print("[bold red]Kritischer Fehler: Docker konnte nicht neu gestartet werden. Bitte manuell prüfen![/bold red]")
         raise typer.Exit(code=1)
 
+@app.command("docker-clean-backup")
+def docker_clean_backup():
+    """
+    Löscht ein altes Docker Volume Backup, falls dieses verschoben wurde.
+    """
+    console.print("[bold blue]Lösche Docker Backup[/bold blue]")
+    
+    backup_path = questionary.text(
+        "Pfad zum alten Docker Backup:",
+        default="/var/lib/docker.backup"
+    ).ask()
+    
+    if not backup_path:
+        raise typer.Exit()
+        
+    # Sicherheitsabfrage
+    if backup_path == "/" or backup_path == "/var/lib/docker" or backup_path == "/var/lib":
+        console.print(f"[bold red]WARNUNG: Der Pfad '{backup_path}' ist potenziell gefährlich und wurde abgelehnt![/bold red]")
+        raise typer.Exit(code=1)
+        
+    # Check if exists (with sudo via ls)
+    result = subprocess.run(["sudo", "test", "-d", backup_path])
+    if result.returncode != 0:
+        console.print(f"[yellow]Das Verzeichnis '{backup_path}' wurde nicht gefunden oder es ist kein Verzeichnis.[/yellow]")
+        raise typer.Exit()
+        
+    console.print(f"\n[bold red]WARNUNG:[/bold red] Alle Dateien in [cyan]{backup_path}[/cyan] werden unwiderruflich gelöscht!")
+    if not questionary.confirm("Bist du sicher, dass du das Backup löschen möchtest?", default=False).ask():
+        console.print("[yellow]Vorgang abgebrochen.[/yellow]")
+        raise typer.Exit()
+        
+    console.print(f"[blue]Lösche {backup_path}...[/blue]")
+    if run_command(f"sudo rm -rf {backup_path}", desc="Lösche Backup-Verzeichnis"):
+        console.print(f"[bold green]Backup erfolgreich gelöscht![/bold green]")
+    else:
+        console.print("[bold red]Fehler beim Löschen des Backups.[/bold red]")
+        raise typer.Exit(code=1)
+
 

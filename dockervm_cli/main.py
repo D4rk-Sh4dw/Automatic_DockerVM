@@ -65,6 +65,7 @@ def list_commands():
     # Disk
     table.add_row("Laufwerke", "dvm disk mount", "Neue (unformatierte) Festplatte (vdisk) formatieren und einbinden")
     table.add_row("", "dvm disk docker-storage", "Docker Speicherort (data-root) interaktiv ändern")
+    table.add_row("", "dvm disk docker-clean-backup", "Altes Docker Speicherort-Backup bereinigen")
     table.add_section()
     
     # Misc
@@ -131,6 +132,7 @@ def main(
                     Separator("--- Laufwerke ---"),
                     "Festplatte formatieren & einbinden",
                     "Docker Speicherort ändern (data-root)",
+                    "Altes Docker Backup löschen",
                     Separator(),
                     Separator("--- Sonstiges ---"),
                     "CLI aktualisieren",
@@ -180,6 +182,8 @@ def main(
                 disk.mount_disk()
             elif choice == "Docker Speicherort ändern (data-root)":
                 disk.docker_storage()
+            elif choice == "Altes Docker Backup löschen":
+                disk.docker_clean_backup()
             elif choice == "CLI aktualisieren":
                 update.update_self()
             elif choice == "Beenden":
