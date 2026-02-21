@@ -69,6 +69,7 @@ def list_commands():
     table.add_row("", "dvm disk expand", "Bestehende Festplatte (Partition) interaktiv vergrößern")
     table.add_row("", "dvm disk docker-storage", "Docker Speicherort (data-root) interaktiv ändern")
     table.add_row("", "dvm disk docker-clean-backup", "Altes Docker Speicherort-Backup bereinigen")
+    table.add_row("", "dvm disk usage", "Speicherplatz analysieren (ncdu)")
     table.add_section()
     
     # Misc
@@ -138,6 +139,7 @@ def main(
                     "Festplatte (Partition) vergrößern",
                     "Docker Speicherort ändern (data-root)",
                     "Altes Docker Backup löschen",
+                    "Speicherplatz analysieren (ncdu)",
                     Separator(),
                     Separator("--- Sonstiges ---"),
                     "CLI aktualisieren",
@@ -193,6 +195,8 @@ def main(
                 disk.docker_storage()
             elif choice == "Altes Docker Backup löschen":
                 disk.docker_clean_backup()
+            elif choice == "Speicherplatz analysieren (ncdu)":
+                disk.cmd_usage()
             elif choice == "CLI aktualisieren":
                 update.update_self()
             elif choice == "Beenden":

@@ -439,4 +439,27 @@ def expand_disk():
         console.print("[bold red]Fehler bei der Erweiterung des Dateisystems.[/bold red]")
         raise typer.Exit(code=1)
 
+@app.command("usage")
+def cmd_usage():
+    """
+    Speicherplatz analysieren (ncdu)
+    """
+    console.print("[bold blue]Laufwerk Speicherplatz analysieren[/bold blue]")
+    
+    # Check if ncdu is installed
+    check_ncdu = subprocess.run(["dpkg", "-s", "ncdu"], capture_output=True, text=True)
+    if check_ncdu.returncode != 0:
+        console.print("[yellow]ncdu ist nicht installiert. Installiere...[/yellow]")
+        success = run_command("sudo apt-get update && sudo apt-get install -y ncdu", desc="Installiere ncdu")
+        if not success:
+            console.print("[bold red]Fehler bei der Installation von ncdu.[/bold red]")
+            raise typer.Exit(code=1)
+    
+    console.print("[green]Starte ncdu... (Bitten warten)[/green]")
+    try:
+        subprocess.run(["sudo", "ncdu", "/"])
+    except Exception as e:
+        console.print(f"[bold red]Fehler beim Starten von ncdu: {e}[/bold red]")
+        raise typer.Exit(code=1)
+
 

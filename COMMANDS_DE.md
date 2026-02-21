@@ -197,6 +197,12 @@ Interaktive Möglichkeit, Speicher von Festplatten (vdisks/vhdx) zu erweitern, n
   4. Führt `growpart` aus, um die Partition auf den maximal verfügbaren Speicherplatz auf der physischen Festplatte auszudehnen.
   5. Führt anschließend (je nach Dateisystem: ext2/3/4, xfs, btrfs) das passende Tool zur Dateisystem-Vergrößerung (z.B. `resize2fs` oder `xfs_growfs`) aus, damit das Betriebssystem den neuen Platz auch nutzen kann.
 
+### `dvm disk usage`
+Analysiert den Speicherplatzverbrauch interaktiv mit dem Tool `ncdu`.
+- **Was passiert:**
+  1. Prüft, ob `ncdu` installiert ist, und installiert es gegebenenfalls über `apt-get` nach.
+  2. Startet die interaktive Benutzeroberfläche von `ncdu` auf dem Wurzelverzeichnis `/`, um große Dateien und Verzeichnisse aufzuspüren.
+
 ---
 
 ## ℹ️ Sonstiges
