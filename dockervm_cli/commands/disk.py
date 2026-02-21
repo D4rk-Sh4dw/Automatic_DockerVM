@@ -30,36 +30,37 @@ def get_expandable_partitions():
                     k, v = part.split("=", 1)
                     props[k] = v
             
-            # We want partitions (TYPE="part") that have a MOUNTPOINT and FSTYPE
-            if props.get('TYPE') == 'part' and props.get('MOUNTPOINT') and props.get('FSTYPE'):
-                # Also must have PKNAME (parent disk) and PARTN (partition number)
-                if props.get('PKNAME') and props.get('PARTN'):
-                    size_bytes = int(props.get('SIZE', 0))
-                    # Convert bytes to human readable roughly for display
-                    if size_bytes > 1024**3:
-                        size_str = f"{size_bytes / (1024**3):.1f} GB"
-                    elif size_bytes > 1024**2:
-                        size_str = f"{size_bytes / (1024**2):.1f} MB"
-                    else:
-                        size_str = f"{size_bytes} B"
-                        
-                    name = props.get('NAME')
-                    mountpoint = props.get('MOUNTPOINT')
-                    fstype = props.get('FSTYPE')
-                    pkname = props.get('PKNAME')
-                    partn = props.get('PARTN')
+            # We want partitions (TYPE="part") OR full disks (TYPE="disk") that have a MOUNTPOINT and FSTYPE
+            disk_type = props.get('TYPE')
+            if disk_type in ('part', 'disk') and props.get('MOUNTPOINT') and props.get('FSTYPE'):
+                size_bytes = int(props.get('SIZE', 0))
+                # Convert bytes to human readable roughly for display
+                if size_bytes > 1024**3:
+                    size_str = f"{size_bytes / (1024**3):.1f} GB"
+                elif size_bytes > 1024**2:
+                    size_str = f"{size_bytes / (1024**2):.1f} MB"
+                else:
+                    size_str = f"{size_bytes} B"
                     
-                    display_str = f"/dev/{name} ({size_str}) eingebunden auf {mountpoint} [{fstype}]"
-                    partitions.append({
-                        "name": display_str,
-                        "value": {
-                            "dev": f"/dev/{name}",
-                            "pkname": f"/dev/{pkname}",
-                            "partn": partn,
-                            "mountpoint": mountpoint,
-                            "fstype": fstype
-                        }
-                    })
+                name = props.get('NAME')
+                mountpoint = props.get('MOUNTPOINT')
+                fstype = props.get('FSTYPE')
+                pkname = props.get('PKNAME', '')
+                partn = props.get('PARTN', '')
+                is_disk = (disk_type == 'disk')
+                
+                display_str = f"/dev/{name} ({size_str}) eingebunden auf {mountpoint} [{fstype}]"
+                partitions.append({
+                    "name": display_str,
+                    "value": {
+                        "dev": f"/dev/{name}",
+                        "pkname": f"/dev/{pkname}" if pkname else "",
+                        "partn": partn,
+                        "mountpoint": mountpoint,
+                        "fstype": fstype,
+                        "is_disk": is_disk
+                    }
+                })
                 
         return partitions
     except Exception as e:
@@ -366,30 +367,36 @@ def expand_disk():
     partn = part_info["partn"]
     mountpoint = part_info["mountpoint"]
     fstype = part_info["fstype"]
+    is_disk = part_info.get("is_disk", False)
     
     console.print(f"\nDu hast [cyan]{dev}[/cyan] ausgewählt ({mountpoint}, [yellow]{fstype}[/yellow]).")
-    console.print(f"Diese Partition liegt auf [cyan]{pkname}[/cyan] (Partition {partn}).")
-    console.print(f"\n[bold yellow]HINWEIS:[/bold yellow] Diese Aktion vergrößert die Partition auf den maximal verfügbaren Speicherplatz auf der Festplatte.")
+    if is_disk:
+        console.print("Es handelt sich um ein vollständiges Laufwerk (keine Partitionen).")
+    else:
+        console.print(f"Diese Partition liegt auf [cyan]{pkname}[/cyan] (Partition {partn}).")
+        
+    console.print(f"\n[bold yellow]HINWEIS:[/bold yellow] Diese Aktion vergrößert den Speicherplatz auf den maximal verfügbaren Bereich.")
     if not questionary.confirm("Möchtest du fortfahren?", default=False).ask():
         console.print("[yellow]Vorgang abgebrochen.[/yellow]")
         raise typer.Exit()
         
-    # 3. Abhängigkeit prüfen/installieren
-    console.print("[blue]Prüfe Abhängigkeiten (cloud-guest-utils für growpart)...[/blue]")
-    subprocess.run(["sudo", "apt-get", "update"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    run_command("sudo apt-get install -y cloud-guest-utils", desc="Installiere cloud-guest-utils", check=False)
-    
-    # 4. Partition erweitern mit growpart
-    console.print(f"[blue]Erweitere Partition {partn} auf {pkname}...[/blue]")
-    # growpart liefert Exit Code 1, wenn kein Platz mehr da ist (NOCHANGE). Das ist normal und kein echter "Fehler", wenn man's wiederholt.
-    growpart_result = subprocess.run(['sudo', 'growpart', pkname, partn], capture_output=True, text=True)
-    if growpart_result.returncode == 0:
-        console.print("[green]Partition erfolgreich vergrößert![/green]")
-    elif "NOCHANGE" in growpart_result.stdout or "NOCHANGE" in growpart_result.stderr:
-        console.print("[yellow]Die Partition belegt bereits den maximal verfügbaren Platz. Dateisystem wird trotzdem überprüft...[/yellow]")
-    else:
-        console.print(f"[bold red]Fehler bei growpart:[/bold red]\n{growpart_result.stderr or growpart_result.stdout}")
-        # Wir machen trotzdem weiter, evtl. ist growpart gescheitert weil xfs_growfs reicht oder FS resize fehlt
+    if not is_disk and pkname and partn:
+        # 3. Abhängigkeit prüfen/installieren
+        console.print("[blue]Prüfe Abhängigkeiten (cloud-guest-utils für growpart)...[/blue]")
+        subprocess.run(["sudo", "apt-get", "update"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        run_command("sudo apt-get install -y cloud-guest-utils", desc="Installiere cloud-guest-utils", check=False)
+        
+        # 4. Partition erweitern mit growpart
+        console.print(f"[blue]Erweitere Partition {partn} auf {pkname}...[/blue]")
+        # growpart liefert Exit Code 1, wenn kein Platz mehr da ist (NOCHANGE). Das ist normal und kein echter "Fehler", wenn man's wiederholt.
+        growpart_result = subprocess.run(['sudo', 'growpart', pkname, partn], capture_output=True, text=True)
+        if growpart_result.returncode == 0:
+            console.print("[green]Partition erfolgreich vergrößert![/green]")
+        elif "NOCHANGE" in growpart_result.stdout or "NOCHANGE" in growpart_result.stderr:
+            console.print("[yellow]Die Partition belegt bereits den maximal verfügbaren Platz. Dateisystem wird trotzdem überprüft...[/yellow]")
+        else:
+            console.print(f"[bold red]Fehler bei growpart:[/bold red]\n{growpart_result.stderr or growpart_result.stdout}")
+            # Wir machen trotzdem weiter, evtl. ist growpart gescheitert weil xfs_growfs reicht oder FS resize fehlt
         
     # 5. Dateisystem vergrößern
     console.print(f"[blue]Passe Dateisystem ({fstype}) an...[/blue]")
