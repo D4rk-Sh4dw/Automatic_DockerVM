@@ -35,6 +35,7 @@ def list_commands():
     # System Updates
     table.add_row("System Management", "dvm update system", "Manuelles System-Update (apt update & upgrade)")
     table.add_row("", "dvm update auto", "Automatische Updates aktivieren (Unattended-Upgrades)")
+    table.add_row("", "dvm update blacklist", "Gezielte Ausnahmen für System-Updates (Blacklist) konfigurieren")
     table.add_row("", "dvm update mail", "E-Mail Benachrichtigungen konfigurieren (SMTP)")
     table.add_row("", "dvm update cron", "Automatische Self-Updates konfigurieren (Cron)")
     table.add_row("", "dvm update dockhand", "Dockhand Container aktualisieren")
