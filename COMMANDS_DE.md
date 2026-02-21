@@ -85,11 +85,11 @@ Installiert Lazydocker, ein Terminal-UI für Docker.
   1. Lädt das offizielle Installationsskript und führt es aus.
   2. Installiert das Binary nach `/usr/local/bin`.
 
-### `dvm install ncdu`
-Installiert ncdu (NCurses Disk Usage), einen Disk Usage Analyzer.
+### `dvm install gdu`
+Installiert gdu (Go Disk Usage Analyzer).
 - **Was passiert:**
   1. Führt `apt update` aus.
-  2. Installiert `ncdu` über den Paketmanager.
+  2. Installiert `gdu` über den Paketmanager.
 
 ### `dvm install zsh`
 Richtet eine moderne Shell-Umgebung ein.
@@ -198,10 +198,10 @@ Interaktive Möglichkeit, Speicher von Festplatten (vdisks/vhdx) zu erweitern, n
   5. Führt anschließend (je nach Dateisystem: ext2/3/4, xfs, btrfs) das passende Tool zur Dateisystem-Vergrößerung (z.B. `resize2fs` oder `xfs_growfs`) aus, damit das Betriebssystem den neuen Platz auch nutzen kann.
 
 ### `dvm disk usage`
-Analysiert den Speicherplatzverbrauch interaktiv mit dem Tool `ncdu`.
+Analysiert den Speicherplatzverbrauch interaktiv mit dem Tool `gdu`.
 - **Was passiert:**
-  1. Prüft, ob `ncdu` installiert ist, und installiert es gegebenenfalls über `apt-get` nach.
-  2. Startet die interaktive Benutzeroberfläche von `ncdu` auf dem Wurzelverzeichnis `/`, um große Dateien und Verzeichnisse aufzuspüren.
+  1. Prüft, ob `gdu` installiert ist, und installiert es gegebenenfalls über `apt-get` nach.
+  2. Startet die interaktive Benutzeroberfläche von `gdu` auf dem Wurzelverzeichnis `/`, um große Dateien und Verzeichnisse aufzuspüren.
 
 ---
 

@@ -448,18 +448,18 @@ def install_dns_server():
         raise typer.Exit(code=1)
 
 
-@app.command("ncdu")
-def install_ncdu():
+@app.command("gdu")
+def install_gdu():
     """
-    Installiert ncdu (NCurses Disk Usage).
+    Installiert gdu (Go Disk Usage Analyzer).
     """
-    console.print("[bold blue]Installiere ncdu...[/bold blue]")
+    console.print("[bold blue]Installiere gdu...[/bold blue]")
     
-    if run_command("sudo apt update && sudo apt install -y ncdu", desc="Installiere ncdu"):
-        console.print("[bold green]ncdu erfolgreich installiert![/bold green]")
-        console.print("Starte es mit dem Befehl: [bold cyan]ncdu[/bold cyan]")
+    if run_command("sudo apt update && sudo apt install -y gdu", desc="Installiere gdu"):
+        console.print("[bold green]gdu erfolgreich installiert![/bold green]")
+        console.print("Starte es mit dem Befehl: [bold cyan]gdu[/bold cyan]")
     else:
-        console.print("[bold red]Fehler bei der Installation von ncdu.[/bold red]")
+        console.print("[bold red]Fehler bei der Installation von gdu.[/bold red]")
         raise typer.Exit(code=1)
 
 
