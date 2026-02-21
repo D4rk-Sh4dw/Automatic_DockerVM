@@ -51,13 +51,18 @@ def install_dockhand():
     if not pg_password:
         console.print("[red]Passwort darf nicht leer sein![/red]")
         raise typer.Exit(code=1)
+
+    # General Configuration
+    console.print("\n[yellow]Allgemeine Konfiguration:[/yellow]")
+    base_volume_path = questionary.text("Basis-Pfad für Volumes:", default=DVM_BASE_PATH).ask()
+    gui_port = questionary.text("GUI Port für Dockhand:", default="3000").ask()
         
     # Prepare directory
-    install_dir = f"{DVM_BASE_PATH}/dockhand"
+    install_dir = f"{base_volume_path}/dockhand"
     run_command(f"sudo mkdir -p {install_dir}", desc=f"Erstelle Installationsverzeichnis: {install_dir}")
     
     # Docker Compose Content
-    # Using bind mounts relative to the compose file to store data in /mnt/volumes/dockhand
+    # Using bind mounts relative to the compose file to store data in the selected volume path
     compose_content = f"""services:
   postgres:
     image: postgres:16-alpine
@@ -66,19 +71,19 @@ def install_dockhand():
       POSTGRES_PASSWORD: {pg_password}
       POSTGRES_DB: {pg_db}
     volumes:
-      - /mnt/volumes/dockhand/postgres_data:/var/lib/postgresql/data
+      - {base_volume_path}/dockhand/postgres_data:/var/lib/postgresql/data
     restart: always
 
   dockhand:
     image: fnsys/dockhand:latest
     ports:
-      - 3000:3000
+      - {gui_port}:3000
     environment:
       DATABASE_URL: postgres://{pg_user}:{pg_password}@postgres:5432/{pg_db}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - /mnt/volumes/dockhand/dockhand_data:/app/data
-      - /mnt/volumes:/mnt/volumes
+      - {base_volume_path}/dockhand/dockhand_data:/app/data
+      - {base_volume_path}:{base_volume_path}
     depends_on:
       - postgres
     restart: always
@@ -101,7 +106,7 @@ def install_dockhand():
     if run_command(f"cd {install_dir} && sudo {compose_cmd} up -d", desc=f"Führe {compose_cmd} up aus"):
         host_ip = get_host_ip()
         console.print(f"[bold green]Dockhand erfolgreich installiert![/bold green]")
-        console.print(f"Zugriff unter: [link]http://{host_ip}:3000[/link]")
+        console.print(f"Zugriff unter: [link]http://{host_ip}:{gui_port}[/link]")
     else:
         console.print("[bold red]Fehler beim Starten von Dockhand.[/bold red]")
         raise typer.Exit(code=1)

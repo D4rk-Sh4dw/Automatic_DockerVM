@@ -64,6 +64,7 @@ def list_commands():
     
     # Disk
     table.add_row("Laufwerke", "dvm disk mount", "Neue (unformatierte) Festplatte (vdisk) formatieren und einbinden")
+    table.add_row("", "dvm disk docker-storage", "Docker Speicherort (data-root) interaktiv ändern")
     table.add_section()
     
     # Misc
@@ -129,6 +130,7 @@ def main(
                     Separator(),
                     Separator("--- Laufwerke ---"),
                     "Festplatte formatieren & einbinden",
+                    "Docker Speicherort ändern (data-root)",
                     Separator(),
                     Separator("--- Sonstiges ---"),
                     "CLI aktualisieren",
@@ -176,6 +178,8 @@ def main(
                 gpu.setup_persistence()
             elif choice == "Festplatte formatieren & einbinden":
                 disk.mount_disk()
+            elif choice == "Docker Speicherort ändern (data-root)":
+                disk.docker_storage()
             elif choice == "CLI aktualisieren":
                 update.update_self()
             elif choice == "Beenden":
