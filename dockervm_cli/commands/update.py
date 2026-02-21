@@ -412,6 +412,11 @@ password       {smtp_pass}
             tmp_log = f.name
         run_command(f"sudo mv {tmp_log} /var/log/msmtp.log", desc="Erstelle Log-Datei")
         run_command("sudo chmod 666 /var/log/msmtp.log", desc="Setze Rechte für Log-Datei")
+        
+        # Disable AppArmor profile for msmtp which blocks writing to /var/log on Ubuntu
+        if os.path.exists("/etc/apparmor.d/usr.bin.msmtp"):
+            run_command("sudo ln -sf /etc/apparmor.d/usr.bin.msmtp /etc/apparmor.d/disable/", desc="Deaktiviere AppArmor für msmtp")
+            run_command("sudo apparmor_parser -R /etc/apparmor.d/usr.bin.msmtp", check=False, desc="Lade AppArmor Profile neu")
     except Exception as e:
         console.print(f"[bold red]Fehler beim Speichern der Konfiguration: {e}[/bold red]")
         raise typer.Exit(code=1)
