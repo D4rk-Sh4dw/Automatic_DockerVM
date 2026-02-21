@@ -334,4 +334,82 @@ def docker_clean_backup():
         console.print("[bold red]Fehler beim Löschen des Backups.[/bold red]")
         raise typer.Exit(code=1)
 
+@app.command("expand")
+def expand_disk():
+    """
+    Vergrößert eine eingebundene Partition und deren Dateisystem (z.B. nach Vergrößerung der vdisk).
+    """
+    console.print("[bold blue]Laufwerk / Partition erweitern[/bold blue]")
+    
+    # 1. Partitionen abfragen
+    partitions = get_expandable_partitions()
+    
+    if not partitions:
+        console.print("[yellow]Keine erweiterbaren Partitionen gefunden.[/yellow]")
+        raise typer.Exit()
+        
+    # 2. Auswahl
+    selected = questionary.select(
+        "Welche Partition möchtest du vergrößern?",
+        choices=[p["name"] for p in partitions]
+    ).ask()
+    
+    if not selected:
+        raise typer.Exit()
+        
+    part_info = next((p["value"] for p in partitions if p["name"] == selected), None)
+    if not part_info:
+        raise typer.Exit()
+        
+    dev = part_info["dev"]
+    pkname = part_info["pkname"]
+    partn = part_info["partn"]
+    mountpoint = part_info["mountpoint"]
+    fstype = part_info["fstype"]
+    
+    console.print(f"\nDu hast [cyan]{dev}[/cyan] ausgewählt ({mountpoint}, [yellow]{fstype}[/yellow]).")
+    console.print(f"Diese Partition liegt auf [cyan]{pkname}[/cyan] (Partition {partn}).")
+    console.print(f"\n[bold yellow]HINWEIS:[/bold yellow] Diese Aktion vergrößert die Partition auf den maximal verfügbaren Speicherplatz auf der Festplatte.")
+    if not questionary.confirm("Möchtest du fortfahren?", default=False).ask():
+        console.print("[yellow]Vorgang abgebrochen.[/yellow]")
+        raise typer.Exit()
+        
+    # 3. Abhängigkeit prüfen/installieren
+    console.print("[blue]Prüfe Abhängigkeiten (cloud-guest-utils für growpart)...[/blue]")
+    subprocess.run(["sudo", "apt-get", "update"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    run_command("sudo apt-get install -y cloud-guest-utils", desc="Installiere cloud-guest-utils", check=False)
+    
+    # 4. Partition erweitern mit growpart
+    console.print(f"[blue]Erweitere Partition {partn} auf {pkname}...[/blue]")
+    # growpart liefert Exit Code 1, wenn kein Platz mehr da ist (NOCHANGE). Das ist normal und kein echter "Fehler", wenn man's wiederholt.
+    growpart_result = subprocess.run(['sudo', 'growpart', pkname, partn], capture_output=True, text=True)
+    if growpart_result.returncode == 0:
+        console.print("[green]Partition erfolgreich vergrößert![/green]")
+    elif "NOCHANGE" in growpart_result.stdout or "NOCHANGE" in growpart_result.stderr:
+        console.print("[yellow]Die Partition belegt bereits den maximal verfügbaren Platz. Dateisystem wird trotzdem überprüft...[/yellow]")
+    else:
+        console.print(f"[bold red]Fehler bei growpart:[/bold red]\n{growpart_result.stderr or growpart_result.stdout}")
+        # Wir machen trotzdem weiter, evtl. ist growpart gescheitert weil xfs_growfs reicht oder FS resize fehlt
+        
+    # 5. Dateisystem vergrößern
+    console.print(f"[blue]Passe Dateisystem ({fstype}) an...[/blue]")
+    if fstype in ['ext2', 'ext3', 'ext4']:
+        cmd = f"sudo resize2fs {dev}"
+    elif fstype == 'xfs':
+        cmd = f"sudo xfs_growfs {mountpoint}"
+    elif fstype == 'btrfs':
+        cmd = f"sudo btrfs filesystem resize max {mountpoint}"
+    else:
+        console.print(f"[bold red]Dateisystem '{fstype}' wird für automatische Vergrößerung nicht unterstützt.[/bold red]")
+        console.print("Bitte vergrößere das Dateisystem manuell.")
+        raise typer.Exit(code=1)
+        
+    if run_command(cmd, desc=f"Vergrößere {fstype} Dateisystem"):
+        console.print(f"\n[bold green]Erfolgreich! Das Netzwerk-Dateisystem wurde erweitert.[/bold green]")
+        # Zeige den neuen Speicherstand an
+        run_command(f"df -h {mountpoint}", desc="Neuer Speicherplatz", check=False)
+    else:
+        console.print("[bold red]Fehler bei der Erweiterung des Dateisystems.[/bold red]")
+        raise typer.Exit(code=1)
+
 
