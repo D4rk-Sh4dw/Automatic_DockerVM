@@ -446,6 +446,16 @@ def cmd_usage():
     """
     console.print("[bold blue]Laufwerk Speicherplatz analysieren[/bold blue]")
     
+    # 1. Zeige aktuellen Speicherplatz an
+    console.print("\n[yellow]Aktuelle Speicherbelegung:[/yellow]")
+    subprocess.run(["df", "-h", "-x", "tmpfs", "-x", "devtmpfs"])
+    
+    # 2. Frage ob gdu gestartet werden soll
+    console.print("")
+    if not questionary.confirm("Möchtest du fortfahren und gdu zur Detailanalyse starten?", default=True).ask():
+        console.print("[yellow]Vorgang abgebrochen.[/yellow]")
+        raise typer.Exit()
+    
     # Check if gdu is installed
     check_gdu = subprocess.run(["dpkg", "-s", "gdu"], capture_output=True, text=True)
     if check_gdu.returncode != 0:
