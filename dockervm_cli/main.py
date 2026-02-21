@@ -61,6 +61,7 @@ def list_commands():
     table.add_row("", "dvm gpu install-driver", "NVIDIA Treiber installieren")
     table.add_row("", "dvm gpu setup-docker", "Docker für GPU konfigurieren")
     table.add_row("", "dvm gpu setup-persistence", "GPU Persistence Mode (Autostart) aktivieren")
+    table.add_row("", "dvm gpu toggle-hold", "NVIDIA Treiber Updates sperren/entsperren (Hold)")
     table.add_section()
     
     # Disk
@@ -129,6 +130,7 @@ def main(
                     "NVIDIA Treiber installieren",
                     "Docker GPU Setup",
                     "GPU Persistence aktivieren",
+                    "NVIDIA Treiber Updates sperren/entsperren (Hold)",
                     Separator(),
                     Separator("--- Laufwerke ---"),
                     "Festplatte formatieren & einbinden",
@@ -179,6 +181,8 @@ def main(
                 gpu.setup_docker()
             elif choice == "GPU Persistence aktivieren":
                 gpu.setup_persistence()
+            elif choice == "NVIDIA Treiber Updates sperren/entsperren (Hold)":
+                gpu.toggle_update_hold()
             elif choice == "Festplatte formatieren & einbinden":
                 disk.mount_disk()
             elif choice == "Docker Speicherort ändern (data-root)":

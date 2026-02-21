@@ -138,3 +138,64 @@ def setup_persistence():
         except Exception as e:
             print_error(f"Fehler beim Aktualisieren der Crontab: {e}")
             raise typer.Exit(code=1)
+
+@app.command("toggle-hold")
+def toggle_update_hold():
+    """Sperrt oder entsperrt NVIDIA Treiber für alle APT Updates (apt-mark hold/unhold)."""
+    print_status("Prüfe aktuellen Hold-Status der NVIDIA Pakete...")
+    
+    try:
+        # dpkg-query to find all installed nvidia/cuda packages
+        result = subprocess.run("dpkg-query -f '${Package}\\n' -W", shell=True, capture_output=True, text=True)
+        installed_packages = result.stdout.strip().splitlines()
+        
+        import re
+        regexes = [re.compile(r'^nvidia-driver.*'), re.compile(r'^libnvidia-.*'), re.compile(r'^cuda.*'), re.compile(r'^libcuda.*')]
+        
+        nvidia_packages = []
+        for pkg in installed_packages:
+            if any(r.match(pkg) for r in regexes):
+                nvidia_packages.append(pkg)
+                
+    except Exception as e:
+        print_error(f"Fehler beim Suchen der NVIDIA Pakete: {e}")
+        raise typer.Exit(code=1)
+        
+    if not nvidia_packages:
+        print_error("Keine installierten NVIDIA bzw. CUDA Pakete gefunden.")
+        raise typer.Exit(code=1)
+        
+    # Check if they are held
+    held_result = subprocess.run("apt-mark showhold", shell=True, capture_output=True, text=True)
+    held_packages = held_result.stdout.strip().splitlines()
+    
+    # Are any of our nvidia packages held?
+    currently_held = [pkg for pkg in nvidia_packages if pkg in held_packages]
+    
+    if currently_held:
+        print_status(f"Es sind aktuell [yellow]{len(currently_held)}[/yellow] NVIDIA Pakete gesperrt (Hold).")
+        action = questionary.select(
+            "Was möchtest du tun?",
+            choices=["Nichts ändern", "Sperre aufheben (Bereit für Updates)"]
+        ).ask()
+        
+        if action == "Sperre aufheben (Bereit für Updates)":
+            cmd = f"apt-mark unhold {' '.join(currently_held)}"
+            if run_command(cmd, desc="Hebe Hold-Status auf"):
+                print_success("Sperre erfolgreich aufgehoben. Die Treiber werden beim nächsten 'apt upgrade' aktualisiert.")
+            else:
+                print_error("Fehler beim Aufheben der Sperre.")
+    else:
+        print_status(f"Es wurden [blue]{len(nvidia_packages)}[/blue] NVIDIA Pakete gefunden. Diese sind [bold green]NICHT gesperrt[/bold green] und werden bei 'apt upgrade' aktualisiert.")
+        action = questionary.select(
+            "Was möchtest du tun?",
+            choices=["Sperren (generell bei allen Updates ausschließen)", "Nichts ändern"]
+        ).ask()
+        
+        if action == "Sperren (generell bei allen Updates ausschließen)":
+            cmd = f"apt-mark hold {' '.join(nvidia_packages)}"
+            if run_command(cmd, desc="Setze Hold-Status"):
+                print_success("Die Treiber wurden erfolgreich gesperrt und werden bei zukünftigen Updates (auch manuell) ignoriert.")
+            else:
+                print_error("Fehler beim Setzen der Sperre.")
+
