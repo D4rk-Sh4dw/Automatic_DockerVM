@@ -446,15 +446,54 @@ def cmd_usage():
     """
     console.print("[bold blue]Laufwerk Speicherplatz analysieren[/bold blue]")
     
-    # 1. Zeige aktuellen Speicherplatz an
-    console.print("\n[yellow]Aktuelle Speicherbelegung:[/yellow]")
-    subprocess.run(["df", "-h", "-x", "tmpfs", "-x", "devtmpfs"])
+    # 1. Speicherplatz auslesen
+    console.print("[blue]Lese Mountpoints...[/blue]")
+    result = subprocess.run(["df", "-h", "-x", "tmpfs", "-x", "devtmpfs"], capture_output=True, text=True)
     
-    # 2. Frage ob gdu gestartet werden soll
+    if result.returncode != 0:
+        console.print(f"[bold red]Fehler beim Auslesen der Festplatten: {result.stderr}[/bold red]")
+        raise typer.Exit(code=1)
+        
+    lines = result.stdout.strip().split("\n")
+    if len(lines) < 2:
+        console.print("[yellow]Keine passenden Laufwerke gefunden.[/yellow]")
+        raise typer.Exit()
+        
+    # Header überspringen
+    choices = []
+    for line in lines[1:]:
+        parts = line.split()
+        if len(parts) >= 6:
+            filesystem = parts[0]
+            size = parts[1]
+            used = parts[2]
+            avail = parts[3]
+            use_percent = parts[4]
+            mountpoint = " ".join(parts[5:])
+            
+            display_str = f"{mountpoint} (Größe: {size}, Belegt: {use_percent} von {used})"
+            choices.append({"name": display_str, "value": mountpoint})
+            
+    choices.append({"name": "Eigener Pfad... (Manuelle Eingabe)", "value": "custom"})
+    
+    # 2. Frage ob gdu gestartet werden soll / Mountpoint Auswahl
     console.print("")
-    if not questionary.confirm("Möchtest du fortfahren und gdu zur Detailanalyse starten?", default=True).ask():
+    selected_path = questionary.select(
+        "Wähle den Pfad, den du mit gdu analysieren möchtest:",
+        choices=choices
+    ).ask()
+    
+    if not selected_path:
         console.print("[yellow]Vorgang abgebrochen.[/yellow]")
         raise typer.Exit()
+        
+    if selected_path == "custom":
+        selected_path = questionary.text(
+            "Gib den absoluten Pfad ein (z.B. /var/log):",
+            default="/"
+        ).ask()
+        if not selected_path:
+            raise typer.Exit()
     
     # Check if gdu is installed
     check_gdu = subprocess.run(["dpkg", "-s", "gdu"], capture_output=True, text=True)
@@ -465,9 +504,9 @@ def cmd_usage():
             console.print("[bold red]Fehler bei der Installation von gdu.[/bold red]")
             raise typer.Exit(code=1)
     
-    console.print("[green]Starte gdu... (Bitten warten)[/green]")
+    console.print(f"[green]Starte gdu für {selected_path}... (Bitte warten)[/green]")
     try:
-        subprocess.run(["sudo", "gdu", "/"])
+        subprocess.run(["sudo", "gdu", selected_path])
     except Exception as e:
         console.print(f"[bold red]Fehler beim Starten von gdu: {e}[/bold red]")
         raise typer.Exit(code=1)
