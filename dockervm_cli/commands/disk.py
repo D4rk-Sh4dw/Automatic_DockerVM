@@ -188,6 +188,8 @@ def docker_storage():
     console.print(f"[blue]Kopiere Docker Daten von {current_path} nach {new_path}... (Das kann je nach Datenmenge dauern!)[/blue]")
     run_command(f"sudo mkdir -p {new_path}", desc="Erstelle neues Verzeichnis")
     
+    run_command("sudo apt-get update && sudo apt-get install -y rsync", desc="Installiere Abhängigkeit: rsync", check=False)
+    
     # WICHTIG: -aP behält Rechte, Time, etc. rsync ist sicherer als cp
     if not run_command(f"sudo rsync -aP {current_path}/ {new_path}/", desc="Kopiere Dateien via rsync (bitte warten)"):
         console.print("[bold red]Fehler beim Kopieren der Daten. Starte Docker neu mit altem Pfad...[/bold red]")
