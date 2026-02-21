@@ -325,6 +325,138 @@ def configure_unattended():
         console.print("[bold red]Fehler bei der Installation. Bitte manuelle Prüfung (sudo apt install -f).[/bold red]")
 
 
+
+@app.command("blacklist")
+def configure_blacklist():
+    """
+    Konfiguriert gezielt Ausnahmen (Blacklist) für System-Updates, ohne Auto-Updates zwingend nutzen zu müssen.
+    """
+    import questionary
+    import os
+    import subprocess
+    import tempfile
+    import re
+    
+    console.print("[bold blue]Paket Blacklist Konfiguration[/bold blue]")
+    console.print("Hier kannst du verhindern, dass bestimmte Pakete bei 'dvm update system' automatisch aktualisiert werden.")
+    
+    blacklist_file = "/etc/apt/apt.conf.d/51unattended-upgrades-blacklist"
+    existing_regexes = []
+    
+    # Read existing blacklist
+    if os.path.exists(blacklist_file):
+        try:
+            with open(blacklist_file, "r") as f:
+                content = f.read()
+            matches = re.findall(r'"([^"]+)";', content)
+            if matches:
+                existing_regexes = matches
+                console.print(f"\\n[green]Gefundene existierende Blacklist-Einträge ({len(existing_regexes)}):[/green]")
+                for r in existing_regexes:
+                    console.print(f"  - {r}")
+                console.print("")
+        except Exception as e:
+            console.print(f"[yellow]Konnte existierende Blacklist nicht lesen: {e}[/yellow]")
+
+    common_packages = [
+        questionary.Choice("NVIDIA Treiber (nvidia-driver, libnvidia-.*)", checked=True if ("nvidia-driver" in existing_regexes) else False),
+        questionary.Choice("CUDA Toolkit (cuda, libcuda.*)", checked=True if ("cuda" in existing_regexes) else False),
+        questionary.Choice("Docker Engine (docker-ce, docker-ce-cli)", checked=True if ("docker-ce" in existing_regexes) else False),
+        questionary.Choice("Containerd (containerd.io)", checked=True if ("containerd.io" in existing_regexes) else False),
+    ]
+    
+    # Add other existing regexes that are not part of common packages as choices
+    common_regexes_check = ["nvidia-driver", "libnvidia-.*", "cuda", "libcuda.*", "docker-ce", "docker-ce-cli", "containerd.io"]
+    custom_existing_choices = []
+    for r in existing_regexes:
+        if r not in common_regexes_check:
+             # Pre-check existing custom entries so the user can uncheck them to remove
+             custom_existing_choices.append(questionary.Choice(f"⭐ Eigener Eintrag: {r}", checked=True))
+             
+    all_choices = common_packages + custom_existing_choices
+    
+    selected = questionary.checkbox(
+        "Aktiviere Pakete für die Blacklist (Ausgewählte = Blockiert):",
+        choices=all_choices
+    ).ask()
+    
+    if selected is None:
+        console.print("[yellow]Abgebrochen.[/yellow]")
+        return
+        
+    blacklist_regex = []
+    if "NVIDIA Treiber (nvidia-driver, libnvidia-.*)" in selected:
+        blacklist_regex.append('"nvidia-driver";')
+        blacklist_regex.append('"libnvidia-.*";')
+    if "CUDA Toolkit (cuda, libcuda.*)" in selected:
+        blacklist_regex.append('"cuda";')
+        blacklist_regex.append('"libcuda.*";')
+    if "Docker Engine (docker-ce, docker-ce-cli)" in selected:
+        blacklist_regex.append('"docker-ce";')
+        blacklist_regex.append('"docker-ce-cli";')
+
+    if "Containerd (containerd.io)" in selected:
+        blacklist_regex.append('"containerd.io";')
+        
+    # Re-add selected custom entries
+    for choice in selected:
+         if choice.startswith("⭐ Eigener Eintrag: "):
+              entry = choice.replace("⭐ Eigener Eintrag: ", "").strip()
+              blacklist_regex.append(f'"{entry}";')
+        
+    # Custom Regex Input (for new ones)
+    custom = questionary.text("Gib NEUE eigene Regex für die Blacklist ein (kommagetrennt, leer lassen zum Überspringen):").ask()
+    if custom:
+        for item in custom.split(","):
+            clean_item = item.strip()
+            if clean_item:
+                blacklist_regex.append(f'"{clean_item}";')
+
+    # Package Search (for new ones)
+    if questionary.confirm("Möchtest du in den installierten Paketen suchen, um weitere Pakete hinzuzufügen?").ask():
+        console.print("[blue]Lade installierte Pakete...[/blue]")
+        try:
+            result = subprocess.run("dpkg-query -f '${Package}\\n' -W", shell=True, capture_output=True, text=True)
+            installed_packages = result.stdout.splitlines()
+            
+            while True:
+                pkg = questionary.autocomplete(
+                    "Tippe zum Suchen eines Pakets (TAB zum Vervollständigen):",
+                    choices=installed_packages
+                ).ask()
+                
+                if pkg:
+                    console.print(f"[green]{pkg} zur Blacklist hinzugefügt.[/green]")
+                    blacklist_regex.append(f'"{pkg}";')
+                
+                if not questionary.confirm("Nach einem weiteren Paket suchen?").ask():
+                    break
+        except Exception as e:
+            console.print(f"[bold red]Fehler beim Abrufen der Pakete: {e}[/bold red]")
+            
+    # Deduplicate before writing
+    blacklist_regex = list(set(blacklist_regex))
+            
+    # Write Blacklist
+    console.print("[blue]Schreibe Blacklist Konfiguration...[/blue]")
+    try:
+        if blacklist_regex:
+            blacklist_content = 'Unattended-Upgrade::Package-Blacklist {\n' + '\n    '.join(blacklist_regex) + '\n};\n'
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".conf", delete=False) as f:
+                f.write(blacklist_content)
+                tmp_blacklist = f.name
+            run_command(f"sudo mv {tmp_blacklist} /etc/apt/apt.conf.d/51unattended-upgrades-blacklist", desc="Schreibe Blacklist Config")
+            console.print("[bold green]Blacklist erfolgreich aktualisiert![/bold green]")
+        else:
+            if os.path.exists("/etc/apt/apt.conf.d/51unattended-upgrades-blacklist"):
+                 run_command("sudo rm /etc/apt/apt.conf.d/51unattended-upgrades-blacklist", desc="Entferne leere Blacklist")
+                 console.print("[bold green]Blacklist geleert und entfernt![/bold green]")
+            else:
+                 console.print("[yellow]Keine Pakete ausgewählt, Blacklist bleibt leer.[/yellow]")
+    except Exception as e:
+         console.print(f"[bold red]Fehler beim Speichern der Blacklist: {e}[/bold red]")
+
+
 @app.command("dockhand")
 def update_dockhand():
     """

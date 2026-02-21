@@ -23,6 +23,13 @@ Aktiviert und konfiguriert automatische Sicherheitsupdates (`unattended-upgrades
   3. Installiert und aktiviert den `unattended-upgrades` Dienst.
 - **Warum:** Wichtig für die Sicherheit, ohne dabei kritische Treiber (wie GPU) automatisch zu zerschießen.
 
+### `dvm update blacklist`
+Konfiguriert gezielt Ausnahmen (Blacklist) für System-Updates, ohne Auto-Updates konfigurieren zu müssen.
+- **Was passiert:**
+  1. Liest bestehende Ausnahmen aus, lässt dich dann reguläre Pakete (wie Nvidia-Treiber oder Docker) auswählen oder manuell suchen. Existierende Einträge können so auch wieder entfernt werden.
+  2. Speichert diese in der Datei `/etc/apt/apt.conf.d/51unattended-upgrades-blacklist`.
+- **Warum:** Nützlich, wenn du `dvm update system` verwenden willst, aber automatische Updates per `dvm update auto` (unattended-upgrades) nicht einschaltest. Die Blacklist wird von `dvm update system` trotzdem respektiert, um Pakete auf "hold" zu setzen.
+
 ### `dvm update mail`
 Konfiguriert E-Mail-Benachrichtigungen für System-Events (z.B. fehlgeschlagene Updates).
 - **Was passiert:**
