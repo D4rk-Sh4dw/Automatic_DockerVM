@@ -7,6 +7,65 @@ from dockervm_cli.utils import run_command, console, DVM_BASE_PATH
 
 app = typer.Typer(help="Verwaltung von Festplatten und Laufwerken (vdisks).")
 
+def get_expandable_partitions():
+    """Returns a list of mounted partitions that could potentially be expanded."""
+    try:
+        # Get disks and partitions using lsblk
+        result = subprocess.run(
+            ['lsblk', '-P', '-b', '-o', 'NAME,TYPE,MOUNTPOINT,FSTYPE,SIZE,PKNAME,PARTN'],
+            capture_output=True, text=True, check=True
+        )
+        
+        partitions = []
+        import shlex
+        for line in result.stdout.strip().split('\n'):
+            if not line:
+                continue
+            
+            # Simple parsing of KEY="VALUE" format
+            props = {}
+            parts = shlex.split(line)
+            for part in parts:
+                if "=" in part:
+                    k, v = part.split("=", 1)
+                    props[k] = v
+            
+            # We want partitions (TYPE="part") that have a MOUNTPOINT and FSTYPE
+            if props.get('TYPE') == 'part' and props.get('MOUNTPOINT') and props.get('FSTYPE'):
+                # Also must have PKNAME (parent disk) and PARTN (partition number)
+                if props.get('PKNAME') and props.get('PARTN'):
+                    size_bytes = int(props.get('SIZE', 0))
+                    # Convert bytes to human readable roughly for display
+                    if size_bytes > 1024**3:
+                        size_str = f"{size_bytes / (1024**3):.1f} GB"
+                    elif size_bytes > 1024**2:
+                        size_str = f"{size_bytes / (1024**2):.1f} MB"
+                    else:
+                        size_str = f"{size_bytes} B"
+                        
+                    name = props.get('NAME')
+                    mountpoint = props.get('MOUNTPOINT')
+                    fstype = props.get('FSTYPE')
+                    pkname = props.get('PKNAME')
+                    partn = props.get('PARTN')
+                    
+                    display_str = f"/dev/{name} ({size_str}) eingebunden auf {mountpoint} [{fstype}]"
+                    partitions.append({
+                        "name": display_str,
+                        "value": {
+                            "dev": f"/dev/{name}",
+                            "pkname": f"/dev/{pkname}",
+                            "partn": partn,
+                            "mountpoint": mountpoint,
+                            "fstype": fstype
+                        }
+                    })
+                
+        return partitions
+    except Exception as e:
+        console.print(f"[bold red]Fehler beim Abrufen der Partitionen: {e}[/bold red]")
+        return []
+
 def get_available_disks():
     """Returns a list of available disks that are not mounted."""
     try:

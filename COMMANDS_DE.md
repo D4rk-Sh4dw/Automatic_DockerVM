@@ -187,6 +187,15 @@ Formatiert eine neue, unbenutzte Festplatte und bindet sie dauerhaft ins System 
   4. Ermittelt die UUID der Festplatte und trägt sie zusammen mit dem Mountpoint in die `/etc/fstab` ein.
   5. Bindet die Festplatte im Laufenden Betrieb über `mount -a` ein und setzt Berechtigungen für den aktuellen Benutzer.
 
+### `dvm disk expand`
+Interaktive Möglichkeit, Speicher von Festplatten (vdisks/vhdx) zu erweitern, nachdem diese z.B. im Hypervisor vergrößert wurden.
+- **Was passiert:**
+  1. Sucht nach eingebundenen Partitionen (`lsblk`), die potenziell erweitert werden können.
+  2. Bietet eine interaktive Auswahl der zu vergrößernden Partition an.
+  3. Installiert bei Bedarf das Paket `cloud-guest-utils` für das Tool `growpart`.
+  4. Führt `growpart` aus, um die Partition auf den maximal verfügbaren Speicherplatz auf der physischen Festplatte auszudehnen.
+  5. Führt anschließend (je nach Dateisystem: ext2/3/4, xfs, btrfs) das passende Tool zur Dateisystem-Vergrößerung (z.B. `resize2fs` oder `xfs_growfs`) aus, damit das Betriebssystem den neuen Platz auch nutzen kann.
+
 ---
 
 ## ℹ️ Sonstiges
