@@ -448,7 +448,10 @@ def cmd_usage():
     
     # 1. Speicherplatz auslesen
     console.print("[blue]Lese Mountpoints...[/blue]")
-    result = subprocess.run(["df", "-h", "-x", "tmpfs", "-x", "devtmpfs"], capture_output=True, text=True)
+    result = subprocess.run(
+        ["df", "-h", "-x", "tmpfs", "-x", "devtmpfs", "-x", "overlay", "-x", "squashfs", "-x", "efivarfs"], 
+        capture_output=True, text=True
+    )
     
     if result.returncode != 0:
         console.print(f"[bold red]Fehler beim Auslesen der Festplatten: {result.stderr}[/bold red]")
@@ -459,20 +462,43 @@ def cmd_usage():
         console.print("[yellow]Keine passenden Laufwerke gefunden.[/yellow]")
         raise typer.Exit()
         
-    # Header überspringen
+    # Header überspringen und Spalten ausrichten
     choices = []
+    parsed_lines = []
+    
+    max_mount_len = 0
+    max_size_len = 0
+    max_used_len = 0
+    max_pcent_len = 0
+    
     for line in lines[1:]:
         parts = line.split()
         if len(parts) >= 6:
-            filesystem = parts[0]
             size = parts[1]
             used = parts[2]
-            avail = parts[3]
             use_percent = parts[4]
             mountpoint = " ".join(parts[5:])
             
-            display_str = f"{mountpoint} (Größe: {size}, Belegt: {use_percent} von {used})"
-            choices.append({"name": display_str, "value": mountpoint})
+            parsed_lines.append({
+                "mountpoint": mountpoint,
+                "size": size,
+                "used": used,
+                "use_percent": use_percent
+            })
+            
+            max_mount_len = max(max_mount_len, len(mountpoint))
+            max_size_len = max(max_size_len, len(size))
+            max_used_len = max(max_used_len, len(used))
+            max_pcent_len = max(max_pcent_len, len(use_percent))
+            
+    for item in parsed_lines:
+        mnt_padded = item["mountpoint"].ljust(max_mount_len + 2)
+        size_padded = item["size"].rjust(max_size_len)
+        used_padded = item["used"].rjust(max_used_len)
+        pcent_padded = item["use_percent"].rjust(max_pcent_len)
+        
+        display_str = f"{mnt_padded} [Größe: {size_padded} | Belegt: {pcent_padded} ({used_padded})]"
+        choices.append({"name": display_str, "value": item["mountpoint"]})
             
     choices.append({"name": "Eigener Pfad... (Manuelle Eingabe)", "value": "custom"})
     
