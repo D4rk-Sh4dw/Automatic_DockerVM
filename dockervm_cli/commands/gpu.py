@@ -44,7 +44,7 @@ def install_driver(url: Optional[str] = typer.Option(None, help="Benutzerdefinie
         raise typer.Exit(code=1)
 
     print_status("Installiere Abhängigkeiten...")
-    if not run_command("apt install -y make gcc build-essential"):
+    if not run_command("apt install -y make gcc build-essential dkms"):
          print_error("Fehler beim Installieren der Abhängigkeiten.")
          raise typer.Exit(code=1)
     
@@ -70,8 +70,15 @@ def install_driver(url: Optional[str] = typer.Option(None, help="Benutzerdefinie
     print_status("Installiere nvtop...")
     run_command("apt install -y nvtop")
     
-    print_success("Treiber-Installation abgeschlossen. Bitte das System neu starten, falls erforderlich.")
-
+    print_success("Treiber-Installation abgeschlossen!")
+    print("")
+    print_error("WICHTIG: Ein Systemneustart ist ZWINGEND erforderlich, bevor die GPU genutzt werden kann.")
+    
+    if questionary.confirm("Möchtest du das System jetzt neu starten?", default=False).ask():
+        print_status("System wird neu gestartet...")
+        run_command("reboot")
+    else:
+        print_status("Bitte starte das System manuell neu (Befehl: reboot), bevor du 'dvm gpu setup-docker' ausführst.")
 @app.command("setup-docker")
 def setup_docker():
     """Konfiguriert Docker für die Nutzung der NVIDIA GPU."""
