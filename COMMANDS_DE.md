@@ -195,6 +195,9 @@ Bindet ein CIFS/SMB Netzlaufwerk interaktiv ein.
   2. Installiert ggf. `cifs-utils`.
   3. Speichert die Anmeldedaten sicher unter `/etc/dvm-credentials/`.
   4. Trägt das Netzlaufwerk mit den Optionen `x-systemd.automount,_netdev,nofail` in die `/etc/fstab` ein.
+     - `x-systemd.automount`: Das Laufwerk wird erst bei tatsächlichem Zugriff verbunden (spart Ressourcen, verhindert Hänger beim Booten).
+     - `_netdev`: Stellt sicher, dass das Netzwerk verfügbar ist, bevor der Mount-Versuch unternommen wird.
+     - `nofail`: Verhindert, dass der Bootvorgang abbricht, falls das Laufwerk mal nicht erreichbar sein sollte.
   5. Wendet den neuen Eintrag sofort mit `mount -a` an.
 
 ### `dvm disk mount-nfs`
@@ -203,6 +206,9 @@ Bindet ein NFS Netzlaufwerk interaktiv ein.
   1. Fragt Netzwerkpfad und lokalen Mountpoint ab.
   2. Installiert ggf. `nfs-common`.
   3. Trägt das Netzlaufwerk mit den Optionen `x-systemd.automount,_netdev,nofail` in die `/etc/fstab` ein.
+     - `x-systemd.automount`: Das Laufwerk wird erst bei tatsächlichem Zugriff verbunden (spart Ressourcen, verhindert Hänger beim Booten).
+     - `_netdev`: Stellt sicher, dass das Netzwerk verfügbar ist, bevor der Mount-Versuch unternommen wird.
+     - `nofail`: Verhindert, dass der Bootvorgang abbricht, falls das Laufwerk mal nicht erreichbar sein sollte.
   4. Wendet den neuen Eintrag sofort mit `mount -a` an.
 
 ### `dvm disk expand`
