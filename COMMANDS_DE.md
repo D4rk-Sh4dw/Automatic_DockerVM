@@ -188,6 +188,23 @@ Formatiert eine neue, unbenutzte Festplatte und bindet sie dauerhaft ins System 
   5. Ermittelt die UUID der Festplatte und trägt sie zusammen mit dem Mountpoint in die `/etc/fstab` ein.
   6. Bindet die Festplatte im Laufenden Betrieb über `mount -a` ein und setzt Berechtigungen für den aktuellen Benutzer.
 
+### `dvm disk mount-cifs`
+Bindet ein CIFS/SMB Netzlaufwerk interaktiv ein.
+- **Was passiert:**
+  1. Fragt Netzwerkpfad, lokalen Mountpoint, Benutzername und Passwort ab.
+  2. Installiert ggf. `cifs-utils`.
+  3. Speichert die Anmeldedaten sicher unter `/etc/dvm-credentials/`.
+  4. Trägt das Netzlaufwerk mit den Optionen `x-systemd.automount,_netdev,nofail` in die `/etc/fstab` ein.
+  5. Wendet den neuen Eintrag sofort mit `mount -a` an.
+
+### `dvm disk mount-nfs`
+Bindet ein NFS Netzlaufwerk interaktiv ein.
+- **Was passiert:**
+  1. Fragt Netzwerkpfad und lokalen Mountpoint ab.
+  2. Installiert ggf. `nfs-common`.
+  3. Trägt das Netzlaufwerk mit den Optionen `x-systemd.automount,_netdev,nofail` in die `/etc/fstab` ein.
+  4. Wendet den neuen Eintrag sofort mit `mount -a` an.
+
 ### `dvm disk expand`
 Interaktive Möglichkeit, Speicher von Festplatten (vdisks/vhdx) zu erweitern, nachdem diese z.B. im Hypervisor vergrößert wurden.
 - **Was passiert:**
