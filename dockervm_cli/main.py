@@ -67,9 +67,11 @@ def list_commands():
     # Disk
     table.add_row("Laufwerke", "dvm disk mount", "Neue (unformatierte) Festplatte (vdisk) formatieren und einbinden")
     table.add_row("", "dvm disk expand", "Bestehende Festplatte (Partition) interaktiv vergrößern")
+    table.add_row("", "dvm disk remount", "Defekte Mounts reparieren (geänderte Festplatten-UUIDs anpassen)")
     table.add_row("", "dvm disk docker-storage", "Docker Speicherort (data-root) interaktiv ändern")
     table.add_row("", "dvm disk docker-clean-backup", "Altes Docker Speicherort-Backup bereinigen")
     table.add_row("", "dvm disk usage", "Speicherplatz analysieren (gdu)")
+    table.add_row("", "dvm disk docker-prune-cron", "Automatisches Docker Image Prune (Cron) konfigurieren")
     table.add_section()
     
     # Misc
@@ -137,9 +139,11 @@ def main(
                     Separator("--- Laufwerke ---"),
                     "Festplatte formatieren & einbinden",
                     "Festplatte (Partition) vergrößern",
+                    "Defekte Mounts reparieren (geänderte UUID)",
                     "Docker Speicherort ändern (data-root)",
                     "Altes Docker Backup löschen",
                     "Speicherplatz analysieren (gdu)",
+                    "Automatische Docker Bereinigung (Cron)",
                     Separator(),
                     Separator("--- Sonstiges ---"),
                     "CLI aktualisieren",
@@ -191,12 +195,16 @@ def main(
                 disk.mount_disk()
             elif choice == "Festplatte (Partition) vergrößern":
                 disk.expand_disk()
+            elif choice == "Defekte Mounts reparieren (geänderte UUID)":
+                disk.remount_disk()
             elif choice == "Docker Speicherort ändern (data-root)":
                 disk.docker_storage()
             elif choice == "Altes Docker Backup löschen":
                 disk.docker_clean_backup()
             elif choice == "Speicherplatz analysieren (gdu)":
                 disk.cmd_usage()
+            elif choice == "Automatische Docker Bereinigung (Cron)":
+                disk.docker_prune_cron()
             elif choice == "CLI aktualisieren":
                 update.update_self()
             elif choice == "Beenden":

@@ -197,11 +197,25 @@ Interaktive Möglichkeit, Speicher von Festplatten (vdisks/vhdx) zu erweitern, n
   4. Führt `growpart` aus, um die Partition auf den maximal verfügbaren Speicherplatz auf der physischen Festplatte auszudehnen.
   5. Führt anschließend (je nach Dateisystem: ext2/3/4, xfs, btrfs) das passende Tool zur Dateisystem-Vergrößerung (z.B. `resize2fs` oder `xfs_growfs`) aus, damit das Betriebssystem den neuen Platz auch nutzen kann.
 
+### `dvm disk remount`
+Repariert defekte Mounts in der `/etc/fstab`, z.B. wenn sich die UUID einer virtuellen Festplatte nach einer Änderung im Hypervisor geändert hat.
+- **Was passiert:**
+  1. Sucht nach fehlenden UUIDs in der `/etc/fstab`.
+  2. Bietet unvergebene, formatierte Laufwerke an, um den Platz der fehlenden UUID einzunehmen.
+  3. Aktualisiert `/etc/fstab` und wendet die Mounts sofort an (`mount -a`).
+
 ### `dvm disk usage`
 Analysiert den Speicherplatzverbrauch interaktiv mit dem Tool `gdu`.
 - **Was passiert:**
   1. Prüft, ob `gdu` installiert ist, und installiert es gegebenenfalls über `apt-get` nach.
   2. Startet die interaktive Benutzeroberfläche von `gdu` auf dem Wurzelverzeichnis `/`, um große Dateien und Verzeichnisse aufzuspüren.
+
+### `dvm disk docker-prune-cron`
+Richtet einen automatischen Cronjob zur regelmäßigen Bereinigung von Docker (image prune) ein.
+- **Was passiert:**
+  1. Fragt interaktiv nach dem gewünschten Intervall (Täglich um 03:00 Uhr, Wöchentlich oder Deaktivieren).
+  2. Fügt einen neuen Eintrag zum Crontab des Benutzers hinzu: `docker image prune -a -f`, wobei die Ausgaben in eine Log-Datei geschrieben werden.
+  3. Entfernt alte Einträge bei einer Deaktivierung.
 
 ---
 

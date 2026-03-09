@@ -535,6 +535,233 @@ def cmd_usage():
         subprocess.run(["sudo", "gdu", selected_path])
     except Exception as e:
         console.print(f"[bold red]Fehler beim Starten von gdu: {e}[/bold red]")
+
+@app.command("docker-prune-cron")
+def docker_prune_cron():
+    """
+    Konfiguriert einen automatischen Cronjob zur regelmäßigen Bereinigung von Docker (image prune).
+    """
+    import questionary
+    import getpass
+    import shutil
+    
+    console.print("[bold blue]Konfiguration Automatische Docker Bereinigung (Cron)[/bold blue]")
+    
+    # Check for docker command
+    if not shutil.which("docker"):
+        console.print("[bold red]Docker nicht gefunden. Bitte sicherstellen, dass Docker installiert ist.[/bold red]")
+        raise typer.Exit(code=1)
+        
+    user = getpass.getuser()
+    log_file = f"/home/{user}/dvm_docker_prune.log" if user != "root" else "/var/log/dvm_docker_prune.log"
+    
+    # 1. Frequency
+    frequency = questionary.select(
+        "Wie oft soll die Docker Bereinigung (image prune -a -f) durchgeführt werden?",
+        choices=[
+            "Täglich (um 03:00 Uhr)",
+            "Wöchentlich (Sonntags um 03:00 Uhr)",
+            "Deaktivieren (Cron entfernen)"
+        ]
+    ).ask()
+    
+    if not frequency:
+        raise typer.Exit()
+        
+    cron_cmd = f"docker image prune -a -f >> {log_file} 2>&1"
+    
+    # 2. Manage Crontab
+    try:
+        # Get current crontab
+        result = subprocess.run("crontab -l", shell=True, capture_output=True, text=True)
+        current_crontab = result.stdout.strip().splitlines()
+        
+        # Filter out existing docker prune jobs
+        new_crontab = [line for line in current_crontab if "docker image prune" not in line and "dvm_docker_prune.log" not in line]
+        
+        if frequency == "Deaktivieren (Cron entfernen)":
+            if len(new_crontab) < len(current_crontab):
+                console.print("[yellow]Bestehender Cron-Job entfernt.[/yellow]")
+            else:
+                console.print("[dim]Kein bestehender Cron-Job gefunden.[/dim]")
+        else:
+            # Add new job
+            if frequency == "Täglich (um 03:00 Uhr)":
+                schedule = "0 3 * * *"
+            else: # Weekly
+                schedule = "0 3 * * 0"
+                
+            job = f"{schedule} {cron_cmd}"
+            new_crontab.append(job)
+            new_crontab.append("") # Ensure newline at end
+            
+            console.print(f"[green]Füge Cron-Job hinzu:[/green] {job}")
+            console.print(f"[dim]Log-Datei: {log_file}[/dim]")
+            
+        # Write back
+        new_crontab_str = "\n".join(new_crontab) + "\n"
+        
+        run_result = subprocess.run(
+            "crontab -", 
+            input=new_crontab_str, 
+            shell=True, 
+            text=True, 
+            capture_output=True
+        )
+        
+        if run_result.returncode == 0:
+            console.print("[bold green]Crontab erfolgreich aktualisiert![/bold green]")
+        else:
+            console.print(f"[bold red]Fehler beim Schreiben der Crontab: {run_result.stderr}[/bold red]")
+            
+    except Exception as e:
+        console.print(f"[bold red]Fehler bei der Cron-Konfiguration: {e}[/bold red]")
+
+@app.command("remount")
+def remount_disk():
+    """
+    Repariert defekte Mounts (z.B. nach Änderung der vdisk UUID) und bindet sie neu ein.
+    """
+    console.print("[bold blue]Defekte Mounts reparieren (UUIDs anpassen)[/bold blue]")
+    
+    # 1. Read current fstab
+    try:
+        with open('/etc/fstab', 'r') as f:
+            fstab_lines = f.readlines()
+    except Exception as e:
+        console.print(f"[bold red]Fehler beim Lesen der /etc/fstab: {e}[/bold red]")
+        raise typer.Exit(code=1)
+        
+    # 2. Get all existing UUIDs using blkid
+    try:
+        result = subprocess.run(['sudo', 'blkid', '-s', 'UUID', '-o', 'export'], capture_output=True, text=True)
+        
+        existing_uuids = set()
+        current_dev = None
+        for line in result.stdout.strip().split('\n'):
+            line = line.strip()
+            if not line: continue
+            if line.startswith('DEVNAME='):
+                current_dev = line.split('=', 1)[1]
+            elif line.startswith('UUID=') and current_dev:
+                uid = line.split('=', 1)[1]
+                existing_uuids.add(uid)
+    except Exception as e:
+        console.print(f"[bold red]Fehler beim Auslesen der UUIDs: {e}[/bold red]")
         raise typer.Exit(code=1)
 
+    broken_entries = []
+    fstab_uuids = []
+    
+    for i, line in enumerate(fstab_lines):
+        line_stripped = line.strip()
+        if not line_stripped or line_stripped.startswith('#'):
+            continue
+            
+        if line_stripped.startswith('UUID='):
+            parts = line_stripped.split()
+            if len(parts) >= 2:
+                uuid = parts[0].split('=', 1)[1]
+                mountpoint = parts[1]
+                fstab_uuids.append(uuid)
+                
+                if uuid not in existing_uuids:
+                    broken_entries.append({
+                        "line_index": i,
+                        "uuid": uuid,
+                        "mountpoint": mountpoint,
+                        "line": line
+                    })
 
+    if not broken_entries:
+        console.print("[green]Alle Laufwerke in /etc/fstab haben momentan gültige UUIDs.[/green]")
+        run_command("sudo mount -a", desc="Versuche alle in der /etc/fstab konfigurierten Laufwerke neu einzubinden", check=False)
+        raise typer.Exit()
+        
+    # Find unassigned devices (have a UUID, but not in fstab)
+    unassigned_devices = []
+    try:
+        lsblk_res = subprocess.run(['lsblk', '-P', '-b', '-o', 'NAME,UUID,FSTYPE,SIZE,MOUNTPOINT'], capture_output=True, text=True)
+        import shlex
+        for line in lsblk_res.stdout.strip().split('\n'):
+            if not line: continue
+            props = {}
+            for part in shlex.split(line):
+                if "=" in part:
+                    k, v = part.split("=", 1)
+                    props[k] = v
+                    
+            if props.get('UUID') and props.get('FSTYPE') and props.get('FSTYPE') != 'swap':
+                uid = props['UUID']
+                # Is it unused in fstab?
+                if uid not in fstab_uuids:
+                    size_bytes = int(props.get('SIZE', 0))
+                    if size_bytes > 1024**3:
+                        size_str = f"{size_bytes / (1024**3):.1f} GB"
+                    else:
+                        size_str = f"{size_bytes / (1024**2):.1f} MB"
+                        
+                    dev_path = f"/dev/{props['NAME']}"
+                    unassigned_devices.append({
+                        "dev": dev_path,
+                        "uuid": uid,
+                        "fstype": props['FSTYPE'],
+                        "size": size_str
+                    })
+    except Exception as e:
+        console.print(f"[yellow]Warnung: Konnte Details der freien Laufwerke nicht abrufen: {e}[/yellow]")
+    
+    modifications = False
+    
+    for b in broken_entries:
+        console.print(f"\n[bold red]FEHLER:[/bold red] Altes Laufwerk (UUID [cyan]{b['uuid']}[/cyan]) für Mountpoint [yellow]{b['mountpoint']}[/yellow] nicht gefunden!")
+        
+        choices = [
+            {"name": "Eintrag in /etc/fstab ignorieren (nichts tun)", "value": "ignore"},
+            {"name": "Eintrag aus /etc/fstab LÖSCHEN", "value": "delete"}
+        ]
+        
+        for d in unassigned_devices:
+            desc = f"Ersetzen durch {d['dev']} (UUID: {d['uuid']}, FS: {d['fstype']}, Größe: {d['size']})"
+            choices.append({"name": desc, "value": d})
+            
+        choice = questionary.select(
+            f"Was möchtest du mit dem defekten Mountpoint {b['mountpoint']} tun?",
+            choices=choices
+        ).ask()
+        
+        if not choice:
+            console.print("[yellow]Abbruch.[/yellow]")
+            raise typer.Exit()
+            
+        if choice == "ignore":
+            continue
+        elif choice == "delete":
+            fstab_lines[b["line_index"]] = f"# GELÖSCHT DURCH DVM REMOUNT: {fstab_lines[b['line_index']]}"
+            modifications = True
+        else:
+            new_uuid = choice['uuid']
+            old_line = fstab_lines[b["line_index"]]
+            new_line = old_line.replace(f"UUID={b['uuid']}", f"UUID={new_uuid}")
+            fstab_lines[b["line_index"]] = f"# ERSETZT DURCH DVM REMOUNT (Alte UUID: {b['uuid']})\n{new_line}"
+            
+            # remove from unassigned to avoid claiming the same disk twice
+            unassigned_devices = [d for d in unassigned_devices if d['uuid'] != new_uuid]
+            modifications = True
+
+    if modifications:
+        if questionary.confirm("\nÄnderungen an der /etc/fstab speichern und anwenden?", default=True).ask():
+            import tempfile
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".fstab", delete=False) as tf:
+                tf.writelines(fstab_lines)
+                tmp_fstab = tf.name
+                
+            run_command("sudo cp /etc/fstab /etc/fstab.backup", desc="Erstelle Backup von /etc/fstab")
+            run_command(f"sudo mv {tmp_fstab} /etc/fstab", desc="Aktualisiere /etc/fstab")
+            run_command("sudo chown root:root /etc/fstab && sudo chmod 644 /etc/fstab", desc="Setze Berechtigungen für /etc/fstab")
+            
+            run_command("sudo systemctl daemon-reload", desc="Lade systemd daemon neu", check=False)
+            if run_command("sudo mount -a", desc="Lade fstab neu und mounte"):
+                console.print("[bold green]Laufwerke erfolgreich aktualisiert und eingebunden![/bold green]")
+            else:
+                console.print("[bold red]Fehler beim Einbinden der Laufwerke (mount -a). Bitte Konfiguration prüfen![/bold red]")
