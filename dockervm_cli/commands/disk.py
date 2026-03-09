@@ -3,6 +3,11 @@ import questionary
 import subprocess
 import os
 import json
+import re
+import tempfile
+import subprocess
+import os
+import json
 from dockervm_cli.utils import run_command, console, DVM_BASE_PATH
 
 app = typer.Typer(help="Verwaltung von Festplatten und Laufwerken (vdisks).")
@@ -765,3 +770,132 @@ def remount_disk():
                 console.print("[bold green]Laufwerke erfolgreich aktualisiert und eingebunden![/bold green]")
             else:
                 console.print("[bold red]Fehler beim Einbinden der Laufwerke (mount -a). Bitte Konfiguration prüfen![/bold red]")
+
+
+@app.command("mount-cifs")
+def mount_cifs():
+    """
+    Bindet ein CIFS/SMB Netzlaufwerk ein.
+    """
+    console.print("[bold blue]CIFS/SMB Laufwerk einbinden[/bold blue]")
+    
+    server_path = questionary.text(
+        "Netzwerkpfad (z.B. //192.168.1.100/share):"
+    ).ask()
+    if not server_path:
+        raise typer.Exit()
+        
+    mount_point = questionary.text(
+        "Lokaler Mountpoint (z.B. /mnt/cifs):",
+        default="/mnt/cifs"
+    ).ask()
+    if not mount_point:
+        raise typer.Exit()
+        
+    username = questionary.text("Benutzername:").ask()
+    if not username:
+        raise typer.Exit()
+        
+    password = questionary.password("Passwort:").ask()
+    if password is None:
+        raise typer.Exit()
+        
+    # Install cifs-utils
+    run_command("sudo apt-get update && sudo apt-get install -y cifs-utils", desc="Installiere cifs-utils", check=False)
+    
+    # Store credentials in a secure file
+    creds_dir = "/etc/dvm-credentials"
+    run_command(f"sudo mkdir -p {creds_dir}", desc="Erstelle Verzeichnis für Anmeldedaten")
+    run_command(f"sudo chmod 700 {creds_dir}", desc="Sichere Verzeichnis")
+    
+    # Generate a name for the credentials file
+    safe_name = re.sub(r'[^a-zA-Z0-9]', '_', server_path)
+    creds_file = f"{creds_dir}/.smb_{safe_name}"
+    
+    with tempfile.NamedTemporaryFile(mode="w", delete=False) as tf:
+        tf.write(f"username={username}\npassword={password}\n")
+        tmp_creds = tf.name
+        
+    run_command(f"sudo mv {tmp_creds} {creds_file}", desc="Speichere Anmeldedaten")
+    run_command(f"sudo chown root:root {creds_file} && sudo chmod 600 {creds_file}", desc="Sichere Anmeldedaten-Datei")
+    
+    run_command(f"sudo mkdir -p {mount_point}", desc=f"Erstelle Mountpoint {mount_point}")
+    
+    # fstab entry
+    fstab_entry = f"{server_path} {mount_point} cifs credentials={creds_file},uid=1000,gid=1000,x-systemd.automount,_netdev,nofail 0 0\n"
+    
+    with open('/etc/fstab', 'r') as f:
+        fstab_content = f.read()
+        
+    if server_path not in fstab_content and mount_point not in fstab_content:
+        console.print("[blue]Füge Eintrag zur /etc/fstab hinzu...[/blue]")
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".fstab", delete=False) as tf:
+            tf.write(fstab_content + fstab_entry)
+            tmp_fstab = tf.name
+            
+        run_command(f"sudo cp /etc/fstab /etc/fstab.backup", desc="Erstelle Backup von /etc/fstab")
+        run_command(f"sudo mv {tmp_fstab} /etc/fstab", desc="Aktualisiere /etc/fstab")
+        run_command("sudo chown root:root /etc/fstab && sudo chmod 644 /etc/fstab", desc="Setze Berechtigungen für /etc/fstab")
+    else:
+        console.print("[yellow]Netzwerkpfad oder Mountpoint bereits in /etc/fstab vorhanden.[/yellow]")
+        
+    console.print(f"[blue]Binde {server_path} unter {mount_point} ein...[/blue]")
+    run_command("sudo systemctl daemon-reload", desc="Lade systemd daemon neu", check=False)
+    if run_command("sudo mount -a", desc="Lade fstab neu und mounte"):
+        console.print(f"\n[bold green]CIFS Laufwerk erfolgreich unter {mount_point} eingebunden![/bold green]")
+    else:
+        console.print("[bold red]Fehler beim Einbinden des Laufwerks.[/bold red]")
+        raise typer.Exit(code=1)
+
+
+@app.command("mount-nfs")
+def mount_nfs():
+    """
+    Bindet ein NFS Netzlaufwerk ein.
+    """
+    console.print("[bold blue]NFS Laufwerk einbinden[/bold blue]")
+    
+    server_path = questionary.text(
+        "Netzwerkpfad (z.B. 192.168.1.100:/volume1/share):"
+    ).ask()
+    if not server_path:
+        raise typer.Exit()
+        
+    mount_point = questionary.text(
+        "Lokaler Mountpoint (z.B. /mnt/nfs):",
+        default="/mnt/nfs"
+    ).ask()
+    if not mount_point:
+        raise typer.Exit()
+        
+    # Install nfs-common
+    run_command("sudo apt-get update && sudo apt-get install -y nfs-common", desc="Installiere nfs-common", check=False)
+    
+    run_command(f"sudo mkdir -p {mount_point}", desc=f"Erstelle Mountpoint {mount_point}")
+    
+    # fstab entry
+    fstab_entry = f"{server_path} {mount_point} nfs x-systemd.automount,_netdev,nofail 0 0\n"
+    
+    with open('/etc/fstab', 'r') as f:
+        fstab_content = f.read()
+        
+    if server_path not in fstab_content and mount_point not in fstab_content:
+        console.print("[blue]Füge Eintrag zur /etc/fstab hinzu...[/blue]")
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".fstab", delete=False) as tf:
+            tf.write(fstab_content + fstab_entry)
+            tmp_fstab = tf.name
+            
+        run_command(f"sudo cp /etc/fstab /etc/fstab.backup", desc="Erstelle Backup von /etc/fstab")
+        run_command(f"sudo mv {tmp_fstab} /etc/fstab", desc="Aktualisiere /etc/fstab")
+        run_command("sudo chown root:root /etc/fstab && sudo chmod 644 /etc/fstab", desc="Setze Berechtigungen für /etc/fstab")
+    else:
+        console.print("[yellow]Netzwerkpfad oder Mountpoint bereits in /etc/fstab vorhanden.[/yellow]")
+        
+    console.print(f"[blue]Binde {server_path} unter {mount_point} ein...[/blue]")
+    run_command("sudo systemctl daemon-reload", desc="Lade systemd daemon neu", check=False)
+    if run_command("sudo mount -a", desc="Lade fstab neu und mounte"):
+        console.print(f"\n[bold green]NFS Laufwerk erfolgreich unter {mount_point} eingebunden![/bold green]")
+    else:
+        console.print("[bold red]Fehler beim Einbinden des Laufwerks.[/bold red]")
+        raise typer.Exit(code=1)
+

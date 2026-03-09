@@ -65,7 +65,9 @@ def list_commands():
     table.add_section()
     
     # Disk
-    table.add_row("Laufwerke", "dvm disk mount", "Neue (unformatierte) Festplatte (vdisk) formatieren und einbinden")
+    table.add_row("Laufwerke", "dvm disk mount", "Neue (unformatierte) Festplatte formatieren und einbinden")
+    table.add_row("", "dvm disk mount-cifs", "CIFS/SMB Netzlaufwerk einbinden")
+    table.add_row("", "dvm disk mount-nfs", "NFS Netzlaufwerk einbinden")
     table.add_row("", "dvm disk expand", "Bestehende Festplatte (Partition) interaktiv vergrößern")
     table.add_row("", "dvm disk remount", "Defekte Mounts reparieren (geänderte Festplatten-UUIDs anpassen)")
     table.add_row("", "dvm disk docker-storage", "Docker Speicherort (data-root) interaktiv ändern")
@@ -138,6 +140,8 @@ def main(
                     Separator(),
                     Separator("--- Laufwerke ---"),
                     "Festplatte formatieren & einbinden",
+                    "CIFS/SMB Netzlaufwerk einbinden",
+                    "NFS Netzlaufwerk einbinden",
                     "Festplatte (Partition) vergrößern",
                     "Defekte Mounts reparieren (geänderte UUID)",
                     "Docker Speicherort ändern (data-root)",
@@ -193,6 +197,10 @@ def main(
                 gpu.toggle_update_hold()
             elif choice == "Festplatte formatieren & einbinden":
                 disk.mount_disk()
+            elif choice == "CIFS/SMB Netzlaufwerk einbinden":
+                disk.mount_cifs()
+            elif choice == "NFS Netzlaufwerk einbinden":
+                disk.mount_nfs()
             elif choice == "Festplatte (Partition) vergrößern":
                 disk.expand_disk()
             elif choice == "Defekte Mounts reparieren (geänderte UUID)":
