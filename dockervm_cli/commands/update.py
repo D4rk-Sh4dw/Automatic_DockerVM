@@ -117,11 +117,56 @@ def update_self():
     if run_command(update_cmd, desc="Ziehe neueste Änderungen von Git (Erzwinge Sync mit main)"):
         # Use sys.executable to ensure we use the same python environment as the running script
         python_exe = sys.executable
-        if run_command(f"cd {repo_dir} && {python_exe} -m pip install --upgrade --force-reinstall .", desc="Installiere aktualisiertes Paket"):
-             console.print("[bold green]Update erfolgreich! Bitte starten Sie das CLI neu.[/bold green]")
+        
+        # Find a mount with sufficient free space for pip's temp files.
+        # This is needed when /tmp (on root FS) is full.
+        pip_env = os.environ.copy()
+        try:
+            df_result = subprocess.run(
+                ["df", "-x", "tmpfs", "-x", "devtmpfs", "-x", "overlay", "-x", "squashfs", "--output=avail,target", "-B1"],
+                capture_output=True, text=True
+            )
+            best_mount = None
+            best_avail = 0
+            for line in df_result.stdout.strip().splitlines()[1:]:
+                parts = line.split()
+                if len(parts) >= 2:
+                    try:
+                        avail = int(parts[0])
+                        mount = parts[1]
+                        if mount == "/" :
+                            continue  # skip root if it's full
+                        if avail > best_avail:
+                            best_avail = avail
+                            best_mount = mount
+                    except ValueError:
+                        pass
+            
+            # Only redirect TMPDIR if we found a better location with >500MB free
+            if best_mount and best_avail > 500 * 1024 * 1024:
+                tmp_dir = os.path.join(best_mount, ".pip_tmp")
+                os.makedirs(tmp_dir, exist_ok=True)
+                pip_env["TMPDIR"] = tmp_dir
+                console.print(f"[dim]Verwende temporäres Verzeichnis auf {best_mount} (TMPDIR={tmp_dir})[/dim]")
+        except Exception as e:
+            console.print(f"[dim]TMPDIR-Erkennung fehlgeschlagen, verwende Standard: {e}[/dim]")
+        
+        install_cmd = f"cd {repo_dir} && {python_exe} -m pip install --upgrade --force-reinstall ."
+        result = subprocess.run(install_cmd, shell=True, env=pip_env)
+        
+        # Cleanup temp dir if we created one
+        if "TMPDIR" in pip_env:
+            try:
+                import shutil
+                shutil.rmtree(pip_env["TMPDIR"], ignore_errors=True)
+            except Exception:
+                pass
+        
+        if result.returncode == 0:
+            console.print("[bold green]Update erfolgreich! Bitte starten Sie das CLI neu.[/bold green]")
         else:
-             console.print("[bold red]Fehler bei der Installation des Updates.[/bold red]")
-             raise typer.Exit(code=1)
+            console.print("[bold red]Fehler bei der Installation des Updates.[/bold red]")
+            raise typer.Exit(code=1)
     else:
         console.print("[bold red]Fehler beim Git Pull.[/bold red]")
         raise typer.Exit(code=1)
