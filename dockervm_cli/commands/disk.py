@@ -14,85 +14,125 @@ app = typer.Typer(help="Verwaltung von Festplatten und Laufwerken (vdisks).")
 
 def get_expandable_partitions():
     """Returns a list of mounted partitions that could potentially be expanded."""
+    # Use findmnt as the authoritative source – it sees ALL mounts including
+    # /dev/mapper/* LVM volumes that lsblk sometimes omits MOUNTPOINT for.
     try:
-        # Get disks and partitions using lsblk
         result = subprocess.run(
-            ['lsblk', '-P', '-b', '-o', 'NAME,TYPE,MOUNTPOINT,FSTYPE,SIZE,PKNAME,PARTN'],
+            ['findmnt', '-P', '-o', 'SOURCE,TARGET,FSTYPE',
+             '-t', 'ext2,ext3,ext4,xfs,btrfs,vfat'],
             capture_output=True, text=True, check=True
         )
-        
-        partitions = []
+
+        # Build size/metadata lookup from lsblk
+        size_map = {}
         import shlex
-        for line in result.stdout.strip().split('\n'):
-            if not line:
+        try:
+            lb_result = subprocess.run(
+                ['lsblk', '-P', '-b', '-o', 'NAME,SIZE,PKNAME,PARTN,TYPE'],
+                capture_output=True, text=True
+            )
+            for lb_line in lb_result.stdout.strip().split('\n'):
+                if not lb_line:
+                    continue
+                lb_props = {}
+                for part in shlex.split(lb_line):
+                    if '=' in part:
+                        k, v = part.split('=', 1)
+                        lb_props[k] = v
+                if lb_props.get('NAME'):
+                    size_map[lb_props['NAME']] = lb_props
+        except Exception:
+            pass
+
+        def get_size_str(dev_path):
+            # Match by device name (handles both /dev/sda1 and /dev/mapper/...)
+            name = os.path.basename(dev_path)
+            lb = size_map.get(name, {})
+            if not lb:
+                # /dev/mapper/foo → resolve to dm-X via realpath
+                try:
+                    real_name = os.path.basename(os.path.realpath(dev_path))
+                    lb = size_map.get(real_name, {})
+                except Exception:
+                    pass
+            if not lb:
+                # sysfs fallback
+                try:
+                    with open(f'/sys/class/block/{os.path.basename(os.path.realpath(dev_path))}/size') as sf:
+                        return f"{int(sf.read().strip()) * 512 / (1024**3):.1f} GB"
+                except Exception:
+                    return "? GB"
+            size_bytes = int(lb.get('SIZE', 0))
+            if size_bytes > 1024**3:
+                return f"{size_bytes / (1024**3):.1f} GB"
+            elif size_bytes > 1024**2:
+                return f"{size_bytes / (1024**2):.1f} MB"
+            return f"{size_bytes} B"
+
+        partitions = []
+        seen = set()
+
+        for fm_line in result.stdout.strip().split('\n'):
+            if not fm_line:
                 continue
-            
-            # Simple parsing of KEY="VALUE" format
             props = {}
-            parts = shlex.split(line)
-            for part in parts:
-                if "=" in part:
-                    k, v = part.split("=", 1)
+            for part in shlex.split(fm_line):
+                if '=' in part:
+                    k, v = part.split('=', 1)
                     props[k] = v
-            
-            # We want partitions (TYPE="part"), full disks (TYPE="disk"),
-            # or LVM logical volumes (TYPE="lvm") that have a MOUNTPOINT and FSTYPE
-            disk_type = props.get('TYPE')
-            if disk_type in ('part', 'disk', 'lvm') and props.get('MOUNTPOINT') and props.get('FSTYPE'):
-                size_bytes = int(props.get('SIZE', 0))
-                # Convert bytes to human readable roughly for display
-                if size_bytes > 1024**3:
-                    size_str = f"{size_bytes / (1024**3):.1f} GB"
-                elif size_bytes > 1024**2:
-                    size_str = f"{size_bytes / (1024**2):.1f} MB"
-                else:
-                    size_str = f"{size_bytes} B"
-                    
-                name = props.get('NAME')
-                mountpoint = props.get('MOUNTPOINT')
-                fstype = props.get('FSTYPE')
-                pkname = props.get('PKNAME', '')
-                partn = props.get('PARTN', '')
-                is_disk = (disk_type == 'disk')
-                is_lvm = (disk_type == 'lvm')
-                
-                # LVM devices appear as dm-X in NAME, but are accessed via /dev/mapper/...
-                # Check if there's a DM_NAME (device mapper name) via lsblk alternative
-                if is_lvm:
-                    # For LVM, try to find the /dev/mapper/ path
-                    try:
-                        dm_result = subprocess.run(
-                            ['sudo', 'dmsetup', 'info', '-c', '--noheadings', '-o', 'name', f'/dev/{name}'],
-                            capture_output=True, text=True
-                        )
-                        dm_name = dm_result.stdout.strip()
-                        if dm_name:
-                            dev_path = f"/dev/mapper/{dm_name}"
-                        else:
-                            dev_path = f"/dev/{name}"
-                    except Exception:
-                        dev_path = f"/dev/{name}"
-                else:
-                    dev_path = f"/dev/{name}"
-                
-                display_str = f"{dev_path} ({size_str}) eingebunden auf {mountpoint} [{fstype}]"
-                partitions.append({
-                    "name": display_str,
-                    "value": {
-                        "dev": dev_path,
-                        "pkname": f"/dev/{pkname}" if pkname else "",
-                        "partn": partn,
-                        "mountpoint": mountpoint,
-                        "fstype": fstype,
-                        "is_disk": is_disk,
-                        "is_lvm": is_lvm
-                    }
-                })
-                
+
+            source = props.get('SOURCE', '')
+            target = props.get('TARGET', '')
+            fstype = props.get('FSTYPE', '')
+
+            if not source or not target or not fstype:
+                continue
+            if not source.startswith('/dev/'):
+                continue
+            key = f"{source}:{target}"
+            if key in seen:
+                continue
+            seen.add(key)
+
+            is_lvm = source.startswith('/dev/mapper/')
+            is_disk = False
+            pkname = ''
+            partn = ''
+
+            # Lookup lsblk metadata
+            lb_name = os.path.basename(source)
+            lb = size_map.get(lb_name, {})
+            if not lb and is_lvm:
+                try:
+                    real_name = os.path.basename(os.path.realpath(source))
+                    lb = size_map.get(real_name, {})
+                except Exception:
+                    pass
+            if lb:
+                is_disk = lb.get('TYPE', '') == 'disk'
+                pkname = lb.get('PKNAME', '')
+                partn = lb.get('PARTN', '')
+
+            size_str = get_size_str(source)
+            display_str = f"{source} ({size_str}) eingebunden auf {target} [{fstype}]"
+            partitions.append({
+                "name": display_str,
+                "value": {
+                    "dev": source,
+                    "pkname": f"/dev/{pkname}" if pkname else "",
+                    "partn": partn,
+                    "mountpoint": target,
+                    "fstype": fstype,
+                    "is_disk": is_disk,
+                    "is_lvm": is_lvm
+                }
+            })
+
         return partitions
     except Exception as e:
         console.print(f"[bold red]Fehler beim Abrufen der Partitionen: {e}[/bold red]")
         return []
+
 
 def get_available_disks():
     """Returns a list of available disks that are not mounted."""
