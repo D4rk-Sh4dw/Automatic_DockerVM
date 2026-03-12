@@ -35,9 +35,10 @@ def get_expandable_partitions():
                     k, v = part.split("=", 1)
                     props[k] = v
             
-            # We want partitions (TYPE="part") OR full disks (TYPE="disk") that have a MOUNTPOINT and FSTYPE
+            # We want partitions (TYPE="part"), full disks (TYPE="disk"),
+            # or LVM logical volumes (TYPE="lvm") that have a MOUNTPOINT and FSTYPE
             disk_type = props.get('TYPE')
-            if disk_type in ('part', 'disk') and props.get('MOUNTPOINT') and props.get('FSTYPE'):
+            if disk_type in ('part', 'disk', 'lvm') and props.get('MOUNTPOINT') and props.get('FSTYPE'):
                 size_bytes = int(props.get('SIZE', 0))
                 # Convert bytes to human readable roughly for display
                 if size_bytes > 1024**3:
@@ -53,17 +54,38 @@ def get_expandable_partitions():
                 pkname = props.get('PKNAME', '')
                 partn = props.get('PARTN', '')
                 is_disk = (disk_type == 'disk')
+                is_lvm = (disk_type == 'lvm')
                 
-                display_str = f"/dev/{name} ({size_str}) eingebunden auf {mountpoint} [{fstype}]"
+                # LVM devices appear as dm-X in NAME, but are accessed via /dev/mapper/...
+                # Check if there's a DM_NAME (device mapper name) via lsblk alternative
+                if is_lvm:
+                    # For LVM, try to find the /dev/mapper/ path
+                    try:
+                        dm_result = subprocess.run(
+                            ['sudo', 'dmsetup', 'info', '-c', '--noheadings', '-o', 'name', f'/dev/{name}'],
+                            capture_output=True, text=True
+                        )
+                        dm_name = dm_result.stdout.strip()
+                        if dm_name:
+                            dev_path = f"/dev/mapper/{dm_name}"
+                        else:
+                            dev_path = f"/dev/{name}"
+                    except Exception:
+                        dev_path = f"/dev/{name}"
+                else:
+                    dev_path = f"/dev/{name}"
+                
+                display_str = f"{dev_path} ({size_str}) eingebunden auf {mountpoint} [{fstype}]"
                 partitions.append({
                     "name": display_str,
                     "value": {
-                        "dev": f"/dev/{name}",
+                        "dev": dev_path,
                         "pkname": f"/dev/{pkname}" if pkname else "",
                         "partn": partn,
                         "mountpoint": mountpoint,
                         "fstype": fstype,
-                        "is_disk": is_disk
+                        "is_disk": is_disk,
+                        "is_lvm": is_lvm
                     }
                 })
                 
@@ -393,9 +415,12 @@ def expand_disk():
     mountpoint = part_info["mountpoint"]
     fstype = part_info["fstype"]
     is_disk = part_info.get("is_disk", False)
+    is_lvm = part_info.get("is_lvm", False)
     
     console.print(f"\nDu hast [cyan]{dev}[/cyan] ausgewählt ({mountpoint}, [yellow]{fstype}[/yellow]).")
-    if is_disk:
+    if is_lvm:
+        console.print("Es handelt sich um ein LVM Logical Volume. growpart wird übersprungen – nur das Dateisystem wird erweitert.")
+    elif is_disk:
         console.print("Es handelt sich um ein vollständiges Laufwerk (keine Partitionen).")
     else:
         console.print(f"Diese Partition liegt auf [cyan]{pkname}[/cyan] (Partition {partn}).")
@@ -405,7 +430,7 @@ def expand_disk():
         console.print("[yellow]Vorgang abgebrochen.[/yellow]")
         raise typer.Exit()
         
-    if not is_disk and pkname and partn:
+    if not is_disk and not is_lvm and pkname and partn:
         # 3. Abhängigkeit prüfen/installieren
         console.print("[blue]Prüfe Abhängigkeiten (cloud-guest-utils für growpart)...[/blue]")
         subprocess.run(["sudo", "apt-get", "update"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
