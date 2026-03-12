@@ -453,7 +453,7 @@ def expand_disk():
     
     console.print(f"\nDu hast [cyan]{dev}[/cyan] ausgewählt ({mountpoint}, [yellow]{fstype}[/yellow]).")
     if is_lvm:
-        console.print("Es handelt sich um ein LVM Logical Volume. growpart wird übersprungen – nur das Dateisystem wird erweitert.")
+        console.print("Es handelt sich um ein LVM Logical Volume. pvresize + lvextend werden ausgeführt, anschließend wird das Dateisystem angepasst.")
     elif is_disk:
         console.print("Es handelt sich um ein vollständiges Laufwerk (keine Partitionen).")
     else:
@@ -464,15 +464,69 @@ def expand_disk():
         console.print("[yellow]Vorgang abgebrochen.[/yellow]")
         raise typer.Exit()
         
-    if not is_disk and not is_lvm and pkname and partn:
-        # 3. Abhängigkeit prüfen/installieren
+    if is_lvm:
+        # 3a. LVM: pvresize → lvextend
+        console.print("[blue]Ermittle Physical Volume(s) für das LVM Logical Volume...[/blue]")
+        # Ermittle die VG des LV
+        vg_name = ''
+        lv_name = ''
+        try:
+            lvs_result = subprocess.run(
+                ['sudo', 'lvs', '--noheadings', '-o', 'vg_name,lv_name', dev],
+                capture_output=True, text=True
+            )
+            if lvs_result.returncode == 0 and lvs_result.stdout.strip():
+                parts_lv = lvs_result.stdout.strip().split()
+                if len(parts_lv) >= 2:
+                    vg_name, lv_name = parts_lv[0], parts_lv[1]
+        except Exception as e:
+            console.print(f"[yellow]Warnung: LV-Info konnte nicht gelesen werden: {e}[/yellow]")
+
+        if vg_name:
+            # PVs der VG ermitteln
+            try:
+                pvs_result = subprocess.run(
+                    ['sudo', 'pvs', '--noheadings', '-o', 'pv_name', vg_name],
+                    capture_output=True, text=True
+                )
+                pv_list = [l.strip() for l in pvs_result.stdout.strip().splitlines() if l.strip()]
+            except Exception:
+                pv_list = []
+
+            # pvresize auf alle PVs der VG
+            for pv in pv_list:
+                console.print(f"[blue]Passe Physical Volume {pv} an neue Disk-Größe an (pvresize)...[/blue]")
+                pv_result = subprocess.run(['sudo', 'pvresize', pv], capture_output=True, text=True)
+                if pv_result.returncode == 0:
+                    console.print(f"[green]pvresize {pv} erfolgreich.[/green]")
+                else:
+                    console.print(f"[yellow]pvresize {pv}: {pv_result.stderr.strip() or pv_result.stdout.strip()}[/yellow]")
+
+            # lvextend: alle freien Extents nutzen
+            console.print(f"[blue]Erweitere Logical Volume {dev} (lvextend -l +100%FREE)...[/blue]")
+            lv_result = subprocess.run(
+                ['sudo', 'lvextend', '-l', '+100%FREE', dev],
+                capture_output=True, text=True
+            )
+            if lv_result.returncode == 0:
+                console.print("[green]Logical Volume erfolgreich erweitert![/green]")
+            elif 'matches existing' in (lv_result.stdout + lv_result.stderr).lower() or \
+                 'already' in (lv_result.stdout + lv_result.stderr).lower() or \
+                 'no free' in (lv_result.stdout + lv_result.stderr).lower():
+                console.print("[yellow]LV bereits auf maximalem freien Speicher. Dateisystem wird trotzdem angepasst...[/yellow]")
+            else:
+                console.print(f"[bold red]Fehler bei lvextend:[/bold red] {lv_result.stderr.strip() or lv_result.stdout.strip()}")
+                # Trotzdem weiter – evtl. ist bereits Platz vorhanden
+        else:
+            console.print("[yellow]VG konnte nicht ermittelt werden. LVM-Schritte werden übersprungen.[/yellow]")
+
+    elif not is_disk and pkname and partn:
+        # 3b. Normales Partition-Layout: growpart
         console.print("[blue]Prüfe Abhängigkeiten (cloud-guest-utils für growpart)...[/blue]")
         subprocess.run(["sudo", "apt-get", "update"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         run_command("sudo apt-get install -y cloud-guest-utils", desc="Installiere cloud-guest-utils", check=False)
-        
-        # 4. Partition erweitern mit growpart
+
         console.print(f"[blue]Erweitere Partition {partn} auf {pkname}...[/blue]")
-        # growpart liefert Exit Code 1, wenn kein Platz mehr da ist (NOCHANGE). Das ist normal und kein echter "Fehler", wenn man's wiederholt.
         growpart_result = subprocess.run(['sudo', 'growpart', pkname, partn], capture_output=True, text=True)
         if growpart_result.returncode == 0:
             console.print("[green]Partition erfolgreich vergrößert![/green]")
@@ -480,7 +534,7 @@ def expand_disk():
             console.print("[yellow]Die Partition belegt bereits den maximal verfügbaren Platz. Dateisystem wird trotzdem überprüft...[/yellow]")
         else:
             console.print(f"[bold red]Fehler bei growpart:[/bold red]\n{growpart_result.stderr or growpart_result.stdout}")
-            # Wir machen trotzdem weiter, evtl. ist growpart gescheitert weil xfs_growfs reicht oder FS resize fehlt
+            # Wir machen trotzdem weiter
         
     # 5. Dateisystem vergrößern
     console.print(f"[blue]Passe Dateisystem ({fstype}) an...[/blue]")
