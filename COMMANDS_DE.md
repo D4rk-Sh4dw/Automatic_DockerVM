@@ -57,7 +57,7 @@ Aktualisiert das `dvm` CLI-Tool.
 - **Was passiert:**
   1. Geht in das Git-Repository des Tools.
   2. Führt `git pull` aus.
-  3. Installiert das Tool neu via `pip install --upgrade .`.
+  3. Installiert das Tool neu via `uv pip install --reinstall .`.
 
 ---
 

@@ -10,7 +10,7 @@ echo "Starting DVM CLI Installation..."
 # 1. Install System Dependencies
 echo "Installing system dependencies..."
 sudo apt update
-sudo apt install -y python3 python3-venv python3-pip git ca-certificates curl gnupg lsb-release
+sudo apt install -y python3 python3-venv git ca-certificates curl gnupg lsb-release
 
 # 2. Install Docker (if not already installed)
 if command -v docker &> /dev/null; then
@@ -46,18 +46,22 @@ fi
 
 # 3. Setup Virtual Environment
 echo "Setting up virtual environment..."
+if ! command -v uv &> /dev/null; then
+    echo "Installing uv..."
+    curl -LsSf https://astral.sh/uv/install.sh | sudo env CARGO_DIST_FORCE_INSTALL_DIR=/usr/local/bin sh
+fi
+
 if [ -d ".venv" ]; then
     echo "Existing venv found."
 else
-    python3 -m venv .venv
+    uv venv .venv
 fi
 
 source .venv/bin/activate
 
 # 4. Install Package
 echo "Installing DVM CLI..."
-pip install --upgrade pip
-pip install .
+uv pip install .
 
 # 5. Save repo path & Configure Base Path
 sudo mkdir -p /etc/dvm

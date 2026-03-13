@@ -151,7 +151,12 @@ def update_self():
         except Exception as e:
             console.print(f"[dim]TMPDIR-Erkennung fehlgeschlagen, verwende Standard: {e}[/dim]")
         
-        install_cmd = f"cd {repo_dir} && {python_exe} -m pip install --upgrade --force-reinstall ."
+        # Ensure uv is installed
+        if subprocess.run("command -v uv", shell=True, capture_output=True).returncode != 0:
+            console.print("[dim]Installiere uv (Fast Python Package Installer)...[/dim]")
+            subprocess.run("curl -LsSf https://astral.sh/uv/install.sh | sudo env CARGO_DIST_FORCE_INSTALL_DIR=/usr/local/bin sh", shell=True, check=True)
+
+        install_cmd = f"cd {repo_dir} && uv pip install --python {python_exe} --reinstall ."
         result = subprocess.run(install_cmd, shell=True, env=pip_env)
         
         # Cleanup temp dir if we created one
