@@ -462,4 +462,32 @@ def install_gdu():
         console.print("[bold red]Fehler bei der Installation von gdu.[/bold red]")
         raise typer.Exit(code=1)
 
-
+@app.command("netbird")
+def install_netbird():
+    """
+    Installiert den Netbird VPN Client.
+    """
+    import questionary
+    
+    console.print("[bold blue]Installiere Netbird...[/bold blue]")
+    
+    if not questionary.confirm("Möchtest du Netbird installieren?").ask():
+        raise typer.Exit()
+        
+    cmd = "curl -fsSL https://pkgs.netbird.io/install.sh | sh"
+    if run_command(cmd, desc="Führe Netbird Installationsskript aus"):
+        console.print("[bold green]Netbird erfolgreich installiert![/bold green]")
+        
+        setup_key = questionary.text("Setup Key (optional, leer lassen für manuellen/interaktiven Login):").ask()
+        
+        if setup_key:
+            if run_command(f"sudo netbird up --setup-key {setup_key}", desc="Verbinde Netbird mit Setup Key"):
+                console.print("[bold green]Netbird erfolgreich mit Setup Key verbunden![/bold green]")
+            else:
+                console.print("[bold red]Fehler bei der Verbindung mit Netbird.[/bold red]")
+                raise typer.Exit(code=1)
+        else:
+            console.print("[yellow]Führe 'sudo netbird up' im Terminal aus, um den interaktiven Login zu starten.[/yellow]")
+    else:
+        console.print("[bold red]Fehler bei der Installation von Netbird.[/bold red]")
+        raise typer.Exit(code=1)

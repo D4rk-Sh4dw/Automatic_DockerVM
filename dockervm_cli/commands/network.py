@@ -81,11 +81,10 @@ def configure_ipvlan():
     
     subnet = questionary.text("Subnetz (z.B. 192.168.178.0/24):").ask()
     gateway = questionary.text("Gateway (z.B. 192.168.178.1):").ask()
-    ip_range = questionary.text("IP Range für Docker (CIDR, z.B. 192.168.178.240/28):").ask()
     parent = questionary.text("Parent Interface (z.B. eth0):", default="eth0").ask()
     net_name = questionary.text("Netzwerkname:", default="ipvlan_network").ask()
     
-    cmd = f"docker network create -d ipvlan --subnet={subnet} --gateway={gateway} --ip-range={ip_range} -o parent={parent} {net_name}"
+    cmd = f"docker network create -d ipvlan --subnet={subnet} --gateway={gateway} -o parent={parent} {net_name}"
     
     console.print(f"\n[cyan]Befehl:[/cyan] {cmd}")
     

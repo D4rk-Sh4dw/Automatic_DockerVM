@@ -91,6 +91,13 @@ Installiert gdu (Go Disk Usage Analyzer).
   1. Führt `apt update` aus.
   2. Installiert `gdu` über den Paketmanager.
 
+### `dvm install netbird`
+Installiert den Netbird VPN Client.
+- **Was passiert:**
+  1. Lädt das offizielle Installationsskript und führt es aus.
+  2. Fragt interaktiv nach einem Setup Key.
+  3. Verbindet den Client via `netbird up` (entweder mit Setup Key oder für manuellen Login).
+
 ### `dvm install zsh`
 Richtet eine moderne Shell-Umgebung ein.
 - **Was passiert:**
