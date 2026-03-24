@@ -47,6 +47,7 @@ def list_commands():
     table.add_row("", "dvm install zsh", "ZSH & Oh My Zsh installieren")
     table.add_row("", "dvm install container", "Container aus Template installieren (z.B. Unifi)")
     table.add_row("", "dvm install dns-server", "DNS Server installieren (AdGuard + Technitium)")
+    table.add_row("", "dvm install netbird", "Netbird VPN Client installieren")
     table.add_section()
     
     # Network
@@ -124,6 +125,7 @@ def main(
                     "ZSH (inkl. Oh My Zsh) installieren",
                     "Container aus Template installieren",
                     "DNS Server installieren",
+                    "Netbird VPN Client installieren",
                     Separator(),
                     Separator("--- Netzwerk ---"),
                     "Netzwerk konfigurieren (Statische IP)",
@@ -177,6 +179,8 @@ def main(
                 install.install_container()
             elif choice == "DNS Server installieren":
                 install.install_dns_server()
+            elif choice == "Netbird VPN Client installieren":
+                install.install_netbird()
             elif choice == "Netzwerk konfigurieren (Statische IP)":
                 network.configure_static_ip()
             elif choice == "IPVLAN konfigurieren":
