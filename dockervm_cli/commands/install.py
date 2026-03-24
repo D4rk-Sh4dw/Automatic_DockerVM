@@ -483,6 +483,23 @@ def install_netbird():
         if setup_key:
             if run_command(f"sudo netbird up --setup-key {setup_key}", desc="Verbinde Netbird mit Setup Key"):
                 console.print("[bold green]Netbird erfolgreich mit Setup Key verbunden![/bold green]")
+                
+                import subprocess
+                try:
+                    import time
+                    time.sleep(2) # Give netbird a moment to bring up the interface
+                    result = subprocess.run(["ip", "-4", "-o", "addr", "show", "wt0"], capture_output=True, text=True)
+                    if result.returncode == 0 and result.stdout.strip():
+                        # Extract IP address from stdout e.g. "4: wt0    inet 10.255.255.10/16 scope global wt0\n..."
+                        parts = result.stdout.strip().split()
+                        # The IP address is typically the 4th element (index 3) in `ip -o addr` output
+                        ip_with_subnet = [p for p in parts if "/" in p][0]
+                        ip_addr = ip_with_subnet.split('/')[0]
+                        console.print(f"\n[bold cyan]🚀 Deine Netbird IP-Adresse lautet: {ip_addr}[/bold cyan]\n")
+                    else:
+                        console.print("\n[yellow]Netbird Interface 'wt0' noch nicht bereit oder IP konnte nicht gelesen werden. Führe später `ip addr show wt0` aus.[/yellow]\n")
+                except Exception as e:
+                    console.print(f"\n[yellow]Fehler beim Auslesen der IP: {e}[/yellow]\n")
             else:
                 console.print("[bold red]Fehler bei der Verbindung mit Netbird.[/bold red]")
                 raise typer.Exit(code=1)
