@@ -179,6 +179,13 @@ Macht die GPU in Docker verfügbar.
 Aktiviert den Persistence Mode (verhindert, dass der Treiber entladen wird, wenn keine Anwendung läuft).
 - **Was passiert:** Erstellt einen Cron-Job (`@reboot`), der `nvidia-smi -pm 1` beim Start ausführt.
 
+### `dvm gpu toggle-hold`
+Sperrt oder entsperrt manuelle Updates für NVIDIA- und CUDA-Treiberpakete.
+- **Was passiert:**
+  1. Sucht nach NVIDIA- und CUDA-Paketen auf dem System.
+  2. Setzt den Status der Pakete über `apt-mark` auf "hold" (gesperrt) oder "unhold" (entsperrt).
+- **Warum:** Nützlich als direkte Handbremse, um bei Treiberarbeiten Updates manuell zu blockieren. Im Gegensatz zur Blacklist greift dies direkt bei allen manuellen `apt` Aufrufen.
+
 ---
 
 ## 💾 Laufwerke (`dvm disk`)
@@ -233,6 +240,20 @@ Repariert defekte Mounts in der `/etc/fstab`, z.B. wenn sich die UUID einer virt
   1. Sucht nach fehlenden UUIDs in der `/etc/fstab`.
   2. Bietet unvergebene, formatierte Laufwerke an, um den Platz der fehlenden UUID einzunehmen.
   3. Aktualisiert `/etc/fstab` und wendet die Mounts sofort an (`mount -a`).
+
+### `dvm disk docker-storage`
+Ändert den Speicherort der Docker-Daten (data-root).
+- **Was passiert:**
+  1. Stoppt den Docker-Dienst.
+  2. Kopiert alle bestehenden Docker-Daten per `rsync` an den neuen Speicherort (z.B. auf eine gemountete Festplatte).
+  3. Passt die `/etc/docker/daemon.json` an.
+  4. Startet Docker wieder und benennt das alte Datenverzeichnis als Backup um.
+
+### `dvm disk docker-clean-backup`
+Löscht das alte Backup des Docker-Speicherorts, nachdem dieser mit `dvm disk docker-storage` verschoben wurde.
+- **Was passiert:**
+  1. Prüft, ob ein Backup des alten Speicherorts (z.B. `/var/lib/docker.bak`) existiert.
+  2. Fragt nach Bestätigung und löscht das alte Backup, um Speicherplatz freizugeben.
 
 ### `dvm disk usage`
 Analysiert den Speicherplatzverbrauch interaktiv mit dem Tool `gdu`.
