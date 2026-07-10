@@ -39,6 +39,8 @@ def list_commands():
     table.add_row("", "dvm update mail", "E-Mail Benachrichtigungen konfigurieren (SMTP)")
     table.add_row("", "dvm update cron", "Automatische Self-Updates konfigurieren (Cron)")
     table.add_row("", "dvm update dockhand", "Dockhand Container aktualisieren")
+    table.add_row("", "dvm update compose", "Docker Compose Update Cronjob einrichten (pull + up -d + prune)")
+    table.add_row("", "dvm update compose-list", "Compose Update Cronjobs anzeigen und verwalten")
     table.add_section()
     
     # Installation
@@ -118,6 +120,8 @@ def main(
                     "E-Mail Benachrichtigungen konfigurieren",
                     "Automatische Self-Updates (Cron)",
                     "Dockhand aktualisieren",
+                    "Compose Update Cronjob einrichten",
+                    "Compose Update Cronjobs verwalten",
                     Separator(),
                     Separator("--- Installation ---"),
                     "Dockhand installieren",
@@ -169,6 +173,10 @@ def main(
                 update.configure_self_cron()
             elif choice == "Dockhand aktualisieren":
                 update.update_dockhand()
+            elif choice == "Compose Update Cronjob einrichten":
+                update.configure_compose_cron()
+            elif choice == "Compose Update Cronjobs verwalten":
+                update.manage_compose_cron()
             elif choice == "Dockhand installieren":
                 install.install_dockhand()
             elif choice == "Lazydocker installieren":

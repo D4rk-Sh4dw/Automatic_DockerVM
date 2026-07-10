@@ -52,6 +52,23 @@ Aktualisiert den Dockhand-Container.
   1. Wechselt in das Dockhand-Verzeichnis.
   2. Führt `docker-compose pull` (Images aktualisieren) und `docker-compose up -d` (Neustart) aus.
 
+### `dvm update compose`
+Richtet einen Cronjob für automatische Docker Compose Updates eines beliebigen Stacks ein.
+- **Was passiert:**
+  1. Sucht Unterordner unter `DVM_BASE_PATH` (Standard `/mnt/volumes`) nach `docker-compose.yml` und bietet sie zur Auswahl an. Alternativ kann ein eigener absoluter Pfad angegeben werden.
+  2. Fragt den gewünschten Zeitplan ab (Täglich / Wöchentlich / Monatlich mit Stunde+Minute, oder eigener Cron-Ausdruck `M H DoM Mon DoW`).
+  3. Installiert bzw. aktualisiert das Helfer-Skript `/usr/local/bin/dvm-update-compose.sh` (idempotent — wird bei jedem Aufruf neu geschrieben). Das Skript führt bei Ausführung `docker compose pull`, `docker compose up -d --remove-orphans` und `docker image prune -f` aus und loggt nach `/var/log/dvm_compose_update.log` (root) bzw. `~/dvm_compose_update.log` (User).
+  4. Fügt einen Eintrag in die User-Crontab ein (`SCHEDULE /usr/local/bin/dvm-update-compose.sh "PFAD"`). Existiert bereits ein Eintrag für denselben Compose-Pfad, wird er nach Rückfrage ersetzt.
+- **Hinweis:** Das Helfer-Skript erkennt zur Laufzeit selbst, ob `docker compose` (V2) oder `docker-compose` (V1) verfügbar ist.
+
+### `dvm update compose-list`
+Zeigt alle dvm-verwalteten Compose-Update-Cronjobs an und bietet interaktive Verwaltung.
+- **Was passiert:**
+  1. Liest die User-Crontab und filtert alle Einträge, die `/usr/local/bin/dvm-update-compose.sh` aufrufen.
+  2. Zeigt sie tabellarisch (Zeitplan + Compose-Datei) an.
+  3. Bietet Aktionen: `Nichts ändern`, `Zeitplan eines Eintrags ändern`, `Eintrag entfernen`, `Alle Einträge entfernen`.
+  4. Bei einer Änderung wird die Crontab entsprechend neu geschrieben.
+
 ### `dvm update self`
 Aktualisiert das `dvm` CLI-Tool.
 - **Was passiert:**

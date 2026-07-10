@@ -658,3 +658,412 @@ Dies ist eine Test-Nachricht von DockerVM{subject_name}.
             run_command(f"rm {tmp_email_file}", desc="Entferne temporäre E-Mail Datei", check=False)
         except Exception as e:
             console.print(f"[bold red]Fehler beim Erstellen der Test-E-Mail: {e}[/bold red]")
+
+
+# ---------------------------------------------------------------------------
+# Docker Compose Update Cronjobs
+# ---------------------------------------------------------------------------
+
+DVM_COMPOSE_UPDATE_SCRIPT = "/usr/local/bin/dvm-update-compose.sh"
+
+
+def _compose_log_file() -> str:
+    """Wählt einen Log-Pfad, der vom aktuellen User beschreibbar ist."""
+    import getpass
+    user = getpass.getuser()
+    if user == "root":
+        return "/var/log/dvm_compose_update.log"
+    return f"/home/{user}/dvm_compose_update.log"
+
+
+def _ensure_compose_update_script(log_file: str) -> bool:
+    """
+    Schreibt/aktualisiert das Helfer-Skript unter DVM_COMPOSE_UPDATE_SCRIPT.
+    Idempotent: wird bei jedem Aufruf überschrieben, damit Verbesserungen automatisch verteilt werden.
+    """
+    import tempfile as _tempfile
+
+    script_template = r"""#!/bin/bash
+# Managed by dvm CLI - do not edit manually.
+# Aktualisiert einen Docker Compose Stack: pull + up -d --remove-orphans + image prune.
+
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+COMPOSE_FILE="$1"
+LOG_FILE="${DVM_COMPOSE_UPDATE_LOG:-__LOG_FILE__}"
+
+if [ -z "$COMPOSE_FILE" ]; then
+    echo "$(date) - Fehler: Kein Pfad zur docker-compose.yml angegeben." >> "$LOG_FILE"
+    exit 1
+fi
+
+if [ ! -f "$COMPOSE_FILE" ]; then
+    echo "$(date) - Fehler: $COMPOSE_FILE nicht gefunden!" >> "$LOG_FILE"
+    exit 1
+fi
+
+if docker compose version >/dev/null 2>&1; then
+    COMPOSE="docker compose"
+elif command -v docker-compose >/dev/null 2>&1; then
+    COMPOSE="docker-compose"
+else
+    echo "$(date) - Fehler: Weder 'docker compose' noch 'docker-compose' verfügbar." >> "$LOG_FILE"
+    exit 1
+fi
+
+echo "--- Update für $COMPOSE_FILE gestartet am $(date) ---" >> "$LOG_FILE"
+cd "$(dirname "$COMPOSE_FILE")" || { echo "$(date) - cd fehlgeschlagen" >> "$LOG_FILE"; exit 1; }
+$COMPOSE pull >> "$LOG_FILE" 2>&1
+$COMPOSE up -d --remove-orphans >> "$LOG_FILE" 2>&1
+docker image prune -f >> "$LOG_FILE" 2>&1
+echo "--- Update für $COMPOSE_FILE abgeschlossen am $(date) ---" >> "$LOG_FILE"
+"""
+    script = script_template.replace("__LOG_FILE__", log_file)
+
+    try:
+        with _tempfile.NamedTemporaryFile(mode="w", suffix=".sh", delete=False) as f:
+            f.write(script)
+            tmp = f.name
+        if not run_command(f"sudo mv {tmp} {DVM_COMPOSE_UPDATE_SCRIPT}", desc="Installiere/Aktualisiere Update-Skript"):
+            return False
+        if not run_command(f"sudo chmod 755 {DVM_COMPOSE_UPDATE_SCRIPT}", desc="Setze Ausführungsrechte"):
+            return False
+        # Log-Datei anlegen und für alle beschreibbar machen (analog zum msmtp Muster)
+        run_command(f"sudo touch {log_file}", desc=f"Erstelle Log-Datei ({log_file})", check=False)
+        run_command(f"sudo chmod 666 {log_file}", desc="Setze Rechte für Log-Datei", check=False)
+        return True
+    except Exception as e:
+        console.print(f"[bold red]Fehler beim Schreiben des Update-Skripts: {e}[/bold red]")
+        return False
+
+
+def _ask_cron_schedule(default_expr: str = "0 3 * * 0") -> str:
+    """
+    Interaktive Auswahl eines Cron-Zeitplans. Liefert einen Ausdruck 'M H DoM Mon DoW'
+    oder einen leeren String bei Abbruch.
+    """
+    import questionary
+
+    preset = questionary.select(
+        "Wie oft soll das Update ausgeführt werden?",
+        choices=[
+            "Täglich",
+            "Wöchentlich",
+            "Monatlich",
+            "Eigener Cron-Ausdruck",
+            "Abbrechen",
+        ]
+    ).ask()
+    if not preset or preset == "Abbrechen":
+        return ""
+
+    if preset == "Eigener Cron-Ausdruck":
+        expr = questionary.text(
+            "Cron-Ausdruck ('M H DoM Mon DoW', z.B. '0 3 * * 0' = Sonntag 03:00):",
+            default=default_expr,
+        ).ask()
+        expr = (expr or "").strip()
+        if not expr or len(expr.split()) != 5:
+            console.print("[red]Ungültiger Cron-Ausdruck (5 Felder erwartet).[/red]")
+            return ""
+        return expr
+
+    hour_str = questionary.text("Stunde (0-23):", default="3").ask()
+    minute_str = questionary.text("Minute (0-59):", default="0").ask()
+    try:
+        hour = int(hour_str)
+        minute = int(minute_str)
+        if not (0 <= hour <= 23 and 0 <= minute <= 59):
+            raise ValueError
+    except (TypeError, ValueError):
+        console.print("[red]Ungültige Uhrzeit.[/red]")
+        return ""
+
+    if preset == "Täglich":
+        return f"{minute} {hour} * * *"
+
+    if preset == "Wöchentlich":
+        dow = questionary.select(
+            "Wochentag:",
+            choices=[
+                questionary.Choice("Montag", value="1"),
+                questionary.Choice("Dienstag", value="2"),
+                questionary.Choice("Mittwoch", value="3"),
+                questionary.Choice("Donnerstag", value="4"),
+                questionary.Choice("Freitag", value="5"),
+                questionary.Choice("Samstag", value="6"),
+                questionary.Choice("Sonntag", value="0"),
+            ]
+        ).ask()
+        if dow is None:
+            return ""
+        return f"{minute} {hour} * * {dow}"
+
+    if preset == "Monatlich":
+        dom_str = questionary.text("Tag im Monat (1-31):", default="1").ask()
+        try:
+            dom = int(dom_str)
+            if not (1 <= dom <= 31):
+                raise ValueError
+        except (TypeError, ValueError):
+            console.print("[red]Ungültiger Tag im Monat.[/red]")
+            return ""
+        return f"{minute} {hour} {dom} * *"
+
+    return ""
+
+
+def _select_compose_file() -> str:
+    """
+    Interaktive Auswahl einer docker-compose.yml.
+    Sucht Unterordner unterhalb von DVM_BASE_PATH und erlaubt zusätzlich einen eigenen Pfad.
+    Liefert einen absoluten Pfad oder einen leeren String bei Abbruch/Fehler.
+    """
+    import questionary
+
+    candidate_names = ("docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml")
+    candidates = []
+    if os.path.isdir(DVM_BASE_PATH):
+        try:
+            for entry in sorted(os.listdir(DVM_BASE_PATH)):
+                sub = os.path.join(DVM_BASE_PATH, entry)
+                if not os.path.isdir(sub):
+                    continue
+                for name in candidate_names:
+                    p = os.path.join(sub, name)
+                    if os.path.isfile(p):
+                        candidates.append(p)
+                        break
+        except Exception as e:
+            console.print(f"[yellow]Konnte {DVM_BASE_PATH} nicht scannen: {e}[/yellow]")
+
+    choices = [questionary.Choice(p, value=p) for p in candidates]
+    choices.append(questionary.Choice("Eigenen Pfad eingeben...", value="__custom__"))
+    choices.append(questionary.Choice("Abbrechen", value=None))
+
+    selected = questionary.select(
+        f"Wähle die docker-compose.yml (durchsucht: {DVM_BASE_PATH}):",
+        choices=choices,
+    ).ask()
+    if not selected:
+        return ""
+
+    if selected == "__custom__":
+        entered = questionary.text(
+            "Absoluter Pfad zur docker-compose.yml:",
+            default=f"{DVM_BASE_PATH.rstrip('/')}/",
+        ).ask()
+        selected = (entered or "").strip()
+        if not selected:
+            return ""
+
+    if not os.path.isabs(selected):
+        console.print("[red]Bitte einen absoluten Pfad angeben.[/red]")
+        return ""
+    if not os.path.isfile(selected):
+        console.print(f"[bold red]Datei nicht gefunden: {selected}[/bold red]")
+        return ""
+    return selected
+
+
+def _read_crontab_lines() -> list:
+    """Liest die aktuelle User-Crontab. Leere Liste, falls keine vorhanden."""
+    result = subprocess.run("crontab -l", shell=True, capture_output=True, text=True)
+    if result.returncode != 0:
+        return []
+    return result.stdout.splitlines()
+
+
+def _write_crontab_lines(lines: list) -> bool:
+    """Schreibt die übergebenen Zeilen als neue User-Crontab."""
+    content = "\n".join(lines).rstrip() + "\n"
+    write = subprocess.run(
+        "crontab -", input=content, shell=True, text=True, capture_output=True
+    )
+    if write.returncode != 0:
+        console.print(f"[bold red]Fehler beim Schreiben der Crontab: {write.stderr}[/bold red]")
+        return False
+    return True
+
+
+def _parse_compose_cron_entries(lines: list) -> list:
+    """
+    Parst eine Crontab und liefert eine Liste dvm-verwalteter Compose-Update-Einträge.
+    Jeder Eintrag: {'idx': int, 'schedule': str, 'compose_file': str, 'line': str}
+    """
+    import re as _re
+
+    entries = []
+    script_re = _re.escape(DVM_COMPOSE_UPDATE_SCRIPT)
+    quoted = _re.compile(rf'{script_re}\s+"([^"]+)"')
+    unquoted = _re.compile(rf'{script_re}\s+(\S+)')
+
+    for idx, line in enumerate(lines):
+        if DVM_COMPOSE_UPDATE_SCRIPT not in line:
+            continue
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        parts = stripped.split(None, 5)
+        if len(parts) < 6:
+            continue
+        schedule = " ".join(parts[:5])
+        command = parts[5]
+        m = quoted.search(command) or unquoted.search(command)
+        compose_file = m.group(1) if m else "?"
+        entries.append({
+            "idx": idx,
+            "schedule": schedule,
+            "compose_file": compose_file,
+            "line": line,
+        })
+    return entries
+
+
+@app.command("compose")
+def configure_compose_cron():
+    """
+    Richtet einen Cronjob für automatische Docker Compose Updates ein
+    (docker compose pull + up -d --remove-orphans + image prune).
+    """
+    import questionary
+    import shutil
+
+    console.print("[bold blue]Docker Compose Update Cronjob einrichten[/bold blue]")
+
+    if not shutil.which("docker"):
+        console.print("[bold red]Docker nicht gefunden. Bitte zuerst Docker installieren.[/bold red]")
+        raise typer.Exit(code=1)
+
+    compose_file = _select_compose_file()
+    if not compose_file:
+        console.print("[yellow]Abgebrochen.[/yellow]")
+        raise typer.Exit()
+
+    schedule = _ask_cron_schedule()
+    if not schedule:
+        console.print("[yellow]Abgebrochen.[/yellow]")
+        raise typer.Exit()
+
+    log_file = _compose_log_file()
+    if not _ensure_compose_update_script(log_file):
+        raise typer.Exit(code=1)
+
+    cron_cmd = f'{DVM_COMPOSE_UPDATE_SCRIPT} "{compose_file}"'
+    job = f"{schedule} {cron_cmd}"
+
+    lines = _read_crontab_lines()
+    marker = f'{DVM_COMPOSE_UPDATE_SCRIPT} "{compose_file}"'
+    existing = [line for line in lines if marker in line]
+
+    if existing:
+        console.print("[yellow]Für diesen Compose-Pfad existiert bereits ein Cronjob:[/yellow]")
+        for e in existing:
+            console.print(f"  {e}")
+        if not questionary.confirm("Alten Eintrag ersetzen?", default=True).ask():
+            console.print("[yellow]Abgebrochen.[/yellow]")
+            raise typer.Exit()
+        lines = [line for line in lines if marker not in line]
+
+    lines.append(job)
+
+    console.print(f"\n[cyan]Neuer Cronjob:[/cyan] {job}")
+    console.print(f"[dim]Log-Datei: {log_file}[/dim]")
+
+    if _write_crontab_lines(lines):
+        console.print("[bold green]Cronjob erfolgreich eingerichtet![/bold green]")
+    else:
+        raise typer.Exit(code=1)
+
+
+@app.command("compose-list")
+def manage_compose_cron():
+    """
+    Zeigt bestehende Docker Compose Update-Cronjobs und ermöglicht Bearbeiten oder Entfernen.
+    """
+    import questionary
+    from rich.table import Table
+
+    console.print("[bold blue]Docker Compose Update Cronjobs[/bold blue]")
+
+    lines = _read_crontab_lines()
+    entries = _parse_compose_cron_entries(lines)
+
+    if not entries:
+        console.print("[yellow]Keine dvm-verwalteten Compose-Update-Cronjobs gefunden.[/yellow]")
+        console.print(f"[dim]Mit 'dvm update compose' kannst du einen neuen anlegen.[/dim]")
+        raise typer.Exit()
+
+    table = Table(title="Aktive Compose-Update-Cronjobs", show_header=True, header_style="bold magenta")
+    table.add_column("#", style="dim", width=4)
+    table.add_column("Zeitplan", style="cyan")
+    table.add_column("Compose-Datei", style="white")
+    for i, e in enumerate(entries, 1):
+        table.add_row(str(i), e["schedule"], e["compose_file"])
+    console.print(table)
+
+    action = questionary.select(
+        "Was möchtest du tun?",
+        choices=[
+            "Nichts ändern",
+            "Zeitplan eines Eintrags ändern",
+            "Eintrag entfernen",
+            "Alle Einträge entfernen",
+        ]
+    ).ask()
+
+    if not action or action == "Nichts ändern":
+        return
+
+    if action == "Alle Einträge entfernen":
+        if not questionary.confirm(
+            f"Wirklich alle {len(entries)} Einträge entfernen?", default=False
+        ).ask():
+            console.print("[yellow]Abgebrochen.[/yellow]")
+            return
+        indices_to_remove = {e["idx"] for e in entries}
+        new_lines = [line for i, line in enumerate(lines) if i not in indices_to_remove]
+        if _write_crontab_lines(new_lines):
+            console.print("[bold green]Alle Compose-Update-Cronjobs entfernt.[/bold green]")
+        return
+
+    entry_choice = questionary.select(
+        "Welchen Eintrag?",
+        choices=[
+            questionary.Choice(
+                f"#{i}: {e['schedule']}  {e['compose_file']}", value=e
+            )
+            for i, e in enumerate(entries, 1)
+        ],
+    ).ask()
+    if not entry_choice:
+        return
+
+    if action == "Eintrag entfernen":
+        if not questionary.confirm(
+            f"Eintrag für {entry_choice['compose_file']} entfernen?", default=True
+        ).ask():
+            console.print("[yellow]Abgebrochen.[/yellow]")
+            return
+        new_lines = [line for i, line in enumerate(lines) if i != entry_choice["idx"]]
+        if _write_crontab_lines(new_lines):
+            console.print("[bold green]Eintrag entfernt.[/bold green]")
+        return
+
+    if action == "Zeitplan eines Eintrags ändern":
+        console.print(f"[dim]Aktueller Zeitplan: {entry_choice['schedule']}[/dim]")
+        new_schedule = _ask_cron_schedule(default_expr=entry_choice["schedule"])
+        if not new_schedule:
+            console.print("[yellow]Abgebrochen.[/yellow]")
+            return
+        old_line = entry_choice["line"]
+        parts = old_line.strip().split(None, 5)
+        if len(parts) < 6:
+            console.print("[red]Konnte den bestehenden Eintrag nicht parsen.[/red]")
+            return
+        new_line = f"{new_schedule} {parts[5]}"
+        new_lines = list(lines)
+        new_lines[entry_choice["idx"]] = new_line
+        if _write_crontab_lines(new_lines):
+            console.print(f"[bold green]Zeitplan aktualisiert:[/bold green] {new_line}")
+        return
