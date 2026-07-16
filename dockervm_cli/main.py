@@ -86,6 +86,229 @@ def list_commands():
     console.print(table)
 
 
+# --------------------------------------------------------------------------
+# Interaktives Menü (kategoriebasiert, mit Beschreibungstexten)
+# --------------------------------------------------------------------------
+
+def _build_menu():
+    """
+    Liefert die Menüstruktur:
+        {Kategorie: [(Label, Beschreibung, Callable_oder_None), ...]}
+
+    Ein Callable == None bedeutet: Eintrag verweist auf eine interne Aktion
+    (siehe unten in run_interactive_menu).
+    """
+    return {
+        "System Management": [
+            ("System Update (Manuell)",
+             "Führt apt update & upgrade aus (interaktiv, mit Blacklist-Prüfung).",
+             update.update_system),
+            ("Automatische Updates aktivieren",
+             "Konfiguriert Unattended-Upgrades für Hintergrund-Updates.",
+             update.configure_unattended),
+            ("Update Blacklist konfigurieren",
+             "Pakete gezielt von automatischen Updates ausnehmen (Muster).",
+             update.configure_blacklist),
+            ("E-Mail Benachrichtigungen konfigurieren",
+             "SMTP-Zugang für Benachrichtigungen zu Updates einrichten.",
+             update.configure_mail),
+            ("Automatische Self-Updates (Cron)",
+             "Dieses CLI-Tool regelmäßig via Cron aktualisieren.",
+             update.configure_self_cron),
+            ("Dockhand aktualisieren",
+             "Zieht das neueste Dockhand-Image und startet den Container neu.",
+             update.update_dockhand),
+            ("Compose Update Cronjob einrichten",
+             "Cron für 'docker compose pull + up -d + prune' pro Stack anlegen.",
+             update.configure_compose_cron),
+            ("Compose Update Cronjobs verwalten",
+             "Vorhandene Compose-Update-Cronjobs anzeigen und löschen.",
+             update.manage_compose_cron),
+        ],
+        "Installation": [
+            ("Dockhand installieren",
+             "Dockhand (Portainer-Alternative) via Docker installieren.",
+             install.install_dockhand),
+            ("Lazydocker installieren",
+             "Terminal-UI zum Verwalten von Docker-Containern.",
+             install.install_lazydocker),
+            ("ZSH (inkl. Oh My Zsh) installieren",
+             "Bessere Shell inkl. Framework, Plugins & Themes.",
+             install.install_zsh),
+            ("Container aus Template installieren",
+             "Vorgefertigte docker-compose Templates deployen (z.B. Unifi).",
+             install.install_container),
+            ("DNS Server installieren",
+             "AdGuard Home + Technitium DNS Server einrichten.",
+             install.install_dns_server),
+            ("Netbird VPN Client installieren",
+             "Netbird (WireGuard-basierter Mesh-VPN) Client installieren.",
+             install.install_netbird),
+        ],
+        "Netzwerk": [
+            ("Statische IP konfigurieren",
+             "IP-Adresse, Gateway und DNS via Netplan festlegen.",
+             network.configure_static_ip),
+            ("IPVLAN konfigurieren",
+             "IPVLAN Docker-Netzwerk (L2) einrichten für native IPs.",
+             network.configure_ipvlan),
+            ("Docker Netzwerk erstellen",
+             "Bridge/Overlay/... Docker-Netzwerk (für 'external: true') anlegen.",
+             network.create_network),
+            ("Docker Netzwerke anzeigen",
+             "Übersicht aller vorhandenen Docker-Netzwerke.",
+             network.list_networks),
+        ],
+        "GPU": [
+            ("GPU prüfen",
+             "NVIDIA GPU Erkennung + Treiber-Status testen.",
+             gpu.check),
+            ("NVIDIA Treiber installieren",
+             "Aktuellen NVIDIA Treiber installieren (inkl. optionaler URL).",
+             gpu.install_driver),
+            ("Docker GPU Setup",
+             "NVIDIA Container Toolkit installieren & Docker konfigurieren.",
+             gpu.setup_docker),
+            ("GPU Persistence aktivieren",
+             "Aktiviert den Persistence Mode als Autostart-Service.",
+             gpu.setup_persistence),
+            ("NVIDIA Treiber Updates sperren/entsperren (Hold)",
+             "apt-mark hold für NVIDIA-/CUDA-Pakete umschalten.",
+             gpu.toggle_update_hold),
+        ],
+        "Laufwerke": [
+            ("Festplatte formatieren & einbinden",
+             "Neue, unformatierte Festplatte einrichten und in fstab eintragen.",
+             disk.mount_disk),
+            ("CIFS/SMB Netzlaufwerk einbinden",
+             "Windows-/Samba-Freigabe dauerhaft mounten.",
+             disk.mount_cifs),
+            ("NFS Netzlaufwerk einbinden",
+             "NFS-Freigabe dauerhaft mounten.",
+             disk.mount_nfs),
+            ("Festplatte (Partition) vergrößern",
+             "Bestehende Partition interaktiv per growpart erweitern.",
+             disk.expand_disk),
+            ("Defekte Mounts reparieren (geänderte UUID)",
+             "fstab-Einträge bei geänderten Festplatten-UUIDs anpassen.",
+             disk.remount_disk),
+            ("Docker Speicherort ändern (data-root)",
+             "Docker data-root interaktiv auf anderen Pfad verschieben.",
+             disk.docker_storage),
+            ("Altes Docker Backup löschen",
+             "Backup des alten data-root Verzeichnisses entfernen.",
+             disk.docker_clean_backup),
+            ("Speicherplatz analysieren (gdu)",
+             "Interaktive Speicherbelegung mit gdu untersuchen.",
+             disk.cmd_usage),
+            ("Automatische Docker Bereinigung (Cron)",
+             "Regelmäßiges 'docker image prune' per Cron einrichten.",
+             disk.docker_prune_cron),
+        ],
+        "Sonstiges": [
+            ("Befehlsübersicht anzeigen",
+             "Zeigt die komplette Tabelle aller verfügbaren CLI-Befehle.",
+             list_commands),
+            ("CLI aktualisieren",
+             "dvm selbst auf die neueste Version aus dem Git-Repo bringen.",
+             update.update_self),
+        ],
+    }
+
+
+def _format_choice(label: str, description: str, width: int) -> str:
+    """
+    Formatiert einen Eintrag als 'Label   —  Beschreibung' mit passender
+    Ausrichtung der Beschreibung.
+    """
+    pad = max(width - len(label), 1)
+    return f"{label}{' ' * pad}—  {description}"
+
+
+def run_interactive_menu():
+    """
+    Startet das zweistufige interaktive Menü:
+      1. Kategorie auswählen
+      2. Befehl aus der Kategorie mit Beschreibung auswählen
+    """
+    import questionary
+    from questionary import Separator, Choice
+    from dockervm_cli.utils import print_header
+
+    menu = _build_menu()
+
+    def show_header():
+        console.clear()
+        print_header("DockerVM Dashboard")
+
+    show_header()
+
+    while True:
+        category_choices = [
+            Choice(title=_format_choice(cat, f"{len(entries)} Befehle", 22), value=cat)
+            for cat, entries in menu.items()
+        ]
+        category_choices.append(Separator())
+        category_choices.append(Choice(title="Beenden", value="__exit__"))
+
+        category = questionary.select(
+            "Kategorie wählen:",
+            choices=category_choices,
+            use_shortcuts=True,
+        ).ask()
+
+        if category in (None, "__exit__"):
+            console.print("[bold blue]Auf Wiedersehen![/bold blue]")
+            break
+
+        # Untermenü der Kategorie
+        while True:
+            entries = menu[category]
+            label_width = max(len(label) for label, _, _ in entries) + 2
+
+            entry_choices = [
+                Choice(
+                    title=_format_choice(label, desc, label_width),
+                    value=idx,
+                )
+                for idx, (label, desc, _) in enumerate(entries)
+            ]
+            entry_choices.append(Separator())
+            entry_choices.append(Choice(title="← Zurück zur Kategorieauswahl", value="__back__"))
+            entry_choices.append(Choice(title="Beenden", value="__exit__"))
+
+            selection = questionary.select(
+                f"[{category}] Was möchtest du tun?",
+                choices=entry_choices,
+            ).ask()
+
+            if selection is None or selection == "__back__":
+                show_header()
+                break
+
+            if selection == "__exit__":
+                console.print("[bold blue]Auf Wiedersehen![/bold blue]")
+                return
+
+            label, _desc, action = entries[selection]
+            console.print(f"\n[bold cyan]▶ {label}[/bold cyan]\n")
+            try:
+                action()
+            except KeyboardInterrupt:
+                console.print("\n[bold yellow]⚠  Abgebrochen.[/bold yellow]")
+            except Exception as exc:  # noqa: BLE001
+                from dockervm_cli.utils import print_error
+                print_error(f"Fehler beim Ausführen: {exc}")
+
+            console.print("\n")
+            try:
+                input("Drücke Enter, um fortzufahren...")
+            except (EOFError, KeyboardInterrupt):
+                console.print("[bold blue]Auf Wiedersehen![/bold blue]")
+                return
+            show_header()
+
+
 @app.callback(invoke_without_command=True)
 def main(
     ctx: typer.Context,
@@ -101,140 +324,7 @@ def main(
         raise typer.Exit()
     
     if ctx.invoked_subcommand is None:
-        import questionary
-        from questionary import Separator
-        from dockervm_cli.utils import print_header
-        
-        print_header("DockerVM Dashboard")
-        
-
-        while True:
-            choice = questionary.select(
-                "Was möchtest du tun?",
-                choices=[
-                    "Befehlsübersicht anzeigen",
-                    Separator(),
-                    Separator("--- System Management ---"),
-                    "System Update (Manuell)",
-                    "Automatische Updates aktivieren",
-                    "E-Mail Benachrichtigungen konfigurieren",
-                    "Automatische Self-Updates (Cron)",
-                    "Dockhand aktualisieren",
-                    "Compose Update Cronjob einrichten",
-                    "Compose Update Cronjobs verwalten",
-                    Separator(),
-                    Separator("--- Installation ---"),
-                    "Dockhand installieren",
-                    "Lazydocker installieren",
-                    "ZSH (inkl. Oh My Zsh) installieren",
-                    "Container aus Template installieren",
-                    "DNS Server installieren",
-                    "Netbird VPN Client installieren",
-                    Separator(),
-                    Separator("--- Netzwerk ---"),
-                    "Netzwerk konfigurieren (Statische IP)",
-                    "IPVLAN konfigurieren",
-                    "Docker Netzwerk erstellen",
-                    "Docker Netzwerke anzeigen",
-                    Separator(),
-                    Separator("--- GPU ---"),
-                    "GPU prüfen",
-                    "NVIDIA Treiber installieren",
-                    "Docker GPU Setup",
-                    "GPU Persistence aktivieren",
-                    "NVIDIA Treiber Updates sperren/entsperren (Hold)",
-                    Separator(),
-                    Separator("--- Laufwerke ---"),
-                    "Festplatte formatieren & einbinden",
-                    "CIFS/SMB Netzlaufwerk einbinden",
-                    "NFS Netzlaufwerk einbinden",
-                    "Festplatte (Partition) vergrößern",
-                    "Defekte Mounts reparieren (geänderte UUID)",
-                    "Docker Speicherort ändern (data-root)",
-                    "Altes Docker Backup löschen",
-                    "Speicherplatz analysieren (gdu)",
-                    "Automatische Docker Bereinigung (Cron)",
-                    Separator(),
-                    Separator("--- Sonstiges ---"),
-                    "CLI aktualisieren",
-                    "Beenden"
-                ]
-            ).ask()
-            
-            if choice == "Befehlsübersicht anzeigen":
-                list_commands()
-            elif choice == "System Update (Manuell)":
-                update.update_system()
-            elif choice == "Automatische Updates aktivieren":
-                update.configure_unattended()
-            elif choice == "E-Mail Benachrichtigungen konfigurieren":
-                update.configure_mail()
-            elif choice == "Automatische Self-Updates (Cron)":
-                update.configure_self_cron()
-            elif choice == "Dockhand aktualisieren":
-                update.update_dockhand()
-            elif choice == "Compose Update Cronjob einrichten":
-                update.configure_compose_cron()
-            elif choice == "Compose Update Cronjobs verwalten":
-                update.manage_compose_cron()
-            elif choice == "Dockhand installieren":
-                install.install_dockhand()
-            elif choice == "Lazydocker installieren":
-                install.install_lazydocker()
-            elif choice == "ZSH (inkl. Oh My Zsh) installieren":
-                install.install_zsh()
-            elif choice == "Container aus Template installieren":
-                install.install_container()
-            elif choice == "DNS Server installieren":
-                install.install_dns_server()
-            elif choice == "Netbird VPN Client installieren":
-                install.install_netbird()
-            elif choice == "Netzwerk konfigurieren (Statische IP)":
-                network.configure_static_ip()
-            elif choice == "IPVLAN konfigurieren":
-                network.configure_ipvlan()
-            elif choice == "Docker Netzwerk erstellen":
-                network.create_network()
-            elif choice == "Docker Netzwerke anzeigen":
-                network.list_networks()
-            elif choice == "GPU prüfen":
-                gpu.check()
-            elif choice == "NVIDIA Treiber installieren":
-                gpu.install_driver()
-            elif choice == "Docker GPU Setup":
-                gpu.setup_docker()
-            elif choice == "GPU Persistence aktivieren":
-                gpu.setup_persistence()
-            elif choice == "NVIDIA Treiber Updates sperren/entsperren (Hold)":
-                gpu.toggle_update_hold()
-            elif choice == "Festplatte formatieren & einbinden":
-                disk.mount_disk()
-            elif choice == "CIFS/SMB Netzlaufwerk einbinden":
-                disk.mount_cifs()
-            elif choice == "NFS Netzlaufwerk einbinden":
-                disk.mount_nfs()
-            elif choice == "Festplatte (Partition) vergrößern":
-                disk.expand_disk()
-            elif choice == "Defekte Mounts reparieren (geänderte UUID)":
-                disk.remount_disk()
-            elif choice == "Docker Speicherort ändern (data-root)":
-                disk.docker_storage()
-            elif choice == "Altes Docker Backup löschen":
-                disk.docker_clean_backup()
-            elif choice == "Speicherplatz analysieren (gdu)":
-                disk.cmd_usage()
-            elif choice == "Automatische Docker Bereinigung (Cron)":
-                disk.docker_prune_cron()
-            elif choice == "CLI aktualisieren":
-                update.update_self()
-            elif choice == "Beenden":
-                console.print("[bold blue]Auf Wiedersehen![/bold blue]")
-                break
-            
-            console.print("\n")
-            input("Press Enter to continue...")
-            console.clear()
-            print_header("DockerVM Dashboard")
+        run_interactive_menu()
 
 if __name__ == "__main__":
     app()
