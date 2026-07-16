@@ -9,7 +9,7 @@ app = typer.Typer(
     name="dvm",
     help="DockerVM Management CLI - Ein modernes Tool zur Verwaltung deiner Docker VM.",
     add_completion=False,
-    no_args_is_help=True
+    no_args_is_help=False,
 )
 
 app.add_typer(update.app, name="update")
