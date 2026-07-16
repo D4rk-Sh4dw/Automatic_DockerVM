@@ -22,18 +22,39 @@ chmod +x setup.sh
 
 ## Nutzung
 
-Starten Sie das interaktive Menü:
+### Interaktives Menü
+
+Starten Sie einfach `dvm` ohne Argumente:
 
 ```bash
 dvm
 ```
 
-Oder nutzen Sie direkte Befehle:
+Es öffnet sich ein **zweistufiges Auswahlmenü** mit Kategorien und Beschreibungstexten zu jedem Befehl:
+
+1. **Kategorie wählen** – z.B. `System Management`, `Installation`, `Netzwerk`, `GPU`, `Laufwerke`, `Sonstiges`.
+2. **Befehl wählen** – jeder Eintrag zeigt neben dem Namen einen kurzen Beschreibungstext, was der Befehl macht.
+
+Navigation:
+
+*   Pfeiltasten `↑` / `↓` zum Auswählen, `Enter` zum Bestätigen.
+*   `← Zurück zur Kategorieauswahl` bringt Sie eine Ebene hoch.
+*   `Beenden` oder `Ctrl+C` schließt das Menü.
+*   Nach Ausführung eines Befehls kehren Sie mit `Enter` ins Untermenü der Kategorie zurück.
+
+### Direkte Befehle
+
+Alle Befehle sind auch direkt aufrufbar (praktisch für Skripte / Cron):
 
 ```bash
-dvm commands  # Zeigt eine Übersicht aller Befehle
+dvm --help                  # Übersicht aller Kategorien
+dvm commands                # Tabellenübersicht aller Befehle mit Beschreibung
+dvm update system           # Beispiel: manuelles System-Update
+dvm install dockhand        # Beispiel: Dockhand installieren
+dvm disk mount              # Beispiel: neue Festplatte einbinden
 ```
-Eine Erklärung aller Punkte findet ihr hier:
+
+Eine ausführliche Erklärung aller Befehle findet ihr hier:
 https://github.com/D4rk-Sh4dw/Automatic_DockerVM/blob/main/COMMANDS_DE.md
 
 ## Fehlerbehebung (Troubleshooting)
