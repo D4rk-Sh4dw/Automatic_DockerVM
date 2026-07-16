@@ -5,9 +5,7 @@ import os
 import json
 import re
 import tempfile
-import subprocess
-import os
-import json
+import shlex
 from dockervm_cli.utils import run_command, console, DVM_BASE_PATH
 
 app = typer.Typer(help="Verwaltung von Festplatten und Laufwerken (vdisks).")
@@ -284,9 +282,77 @@ def mount_disk():
 @app.command("docker-storage")
 def docker_storage():
     """
-    Ändert den Docker Speicherort (data-root) für Images, Volumes etc.
+    Ändert den Docker Speicherort inkl. containerd root, damit Images/Layers komplett verschoben werden.
     """
-    console.print("[bold blue]Docker Speicherort ändern (data-root)[/bold blue]")
+    def quote(path: str) -> str:
+        return shlex.quote(path)
+
+    def write_root_file(path: str, content: str, suffix: str) -> bool:
+        try:
+            with tempfile.NamedTemporaryFile(mode="w", suffix=suffix, delete=False) as tf:
+                tf.write(content)
+                tmp_path = tf.name
+            if not run_command(f"sudo mv {quote(tmp_path)} {quote(path)}", desc=f"Schreibe {path}"):
+                return False
+            return run_command(f"sudo chown root:root {quote(path)} && sudo chmod 644 {quote(path)}", desc=f"Setze Rechte für {path}")
+        except Exception as e:
+            console.print(f"[bold red]Fehler beim Schreiben von {path}: {e}[/bold red]")
+            return False
+
+    def read_containerd_root_from_config(config_text: str) -> str:
+        first_section_idx = len(config_text)
+        section_match = re.search(r"(?m)^\s*\[", config_text)
+        if section_match:
+            first_section_idx = section_match.start()
+        top_level = config_text[:first_section_idx]
+        root_match = re.search(r'(?m)^\s*root\s*=\s*"([^\"]+)"\s*$', top_level)
+        if root_match:
+            return root_match.group(1).strip()
+        return "/var/lib/containerd"
+
+    def build_containerd_config(existing_text: str, new_root: str) -> str:
+        new_state = "/run/containerd"
+        if not existing_text.strip():
+            return (
+                'version = 2\n'
+                f'root = "{new_root}"\n'
+                f'state = "{new_state}"\n'
+            )
+
+        lines = existing_text.splitlines()
+        first_section_idx = len(lines)
+        for idx, line in enumerate(lines):
+            if re.match(r"^\s*\[", line):
+                first_section_idx = idx
+                break
+
+        top_lines = lines[:first_section_idx]
+        rest_lines = lines[first_section_idx:]
+
+        root_set = False
+        state_set = False
+        new_top = []
+
+        for line in top_lines:
+            if re.match(r'^\s*root\s*=\s*"[^\"]*"\s*$', line):
+                new_top.append(f'root = "{new_root}"')
+                root_set = True
+                continue
+            if re.match(r'^\s*state\s*=\s*"[^\"]*"\s*$', line):
+                new_top.append(f'state = "{new_state}"')
+                state_set = True
+                continue
+            new_top.append(line)
+
+        if not root_set:
+            new_top.append(f'root = "{new_root}"')
+        if not state_set:
+            new_top.append(f'state = "{new_state}"')
+
+        merged_lines = new_top + rest_lines
+        return "\n".join(merged_lines).rstrip("\n") + "\n"
+
+    console.print("[bold blue]Docker + containerd Speicherort ändern[/bold blue]")
     
     # 1. Neuen Pfad abfragen
     default_new_path = f"{DVM_BASE_PATH}/docker_data"
@@ -297,8 +363,11 @@ def docker_storage():
     
     if not new_path:
         raise typer.Exit()
+
+    new_path = new_path.rstrip('/')
+    new_containerd_path = f"{new_path}/containerd"
         
-    # 2. Aktuellen Pfad ermitteln
+    # 2. Aktuelle Pfade ermitteln
     current_path = "/var/lib/docker"
     try:
         # Falls Docker läuft, echten Pfad abfragen
@@ -311,33 +380,54 @@ def docker_storage():
             current_path = out_path
     except Exception:
         pass
+
+    containerd_config_path = "/etc/containerd/config.toml"
+    current_containerd_path = "/var/lib/containerd"
+    containerd_config_text = ""
+    result = subprocess.run(['sudo', 'cat', containerd_config_path], capture_output=True, text=True)
+    if result.returncode == 0:
+        containerd_config_text = result.stdout
+        current_containerd_path = read_containerd_root_from_config(containerd_config_text)
         
-    if current_path.rstrip('/') == new_path.rstrip('/'):
-        console.print("[yellow]Der neue Pfad ist identisch mit dem aktuellen Pfad. Nichts zu tun.[/yellow]")
+    docker_already_target = current_path.rstrip('/') == new_path.rstrip('/')
+    containerd_already_target = current_containerd_path.rstrip('/') == new_containerd_path.rstrip('/')
+    if docker_already_target and containerd_already_target:
+        console.print("[yellow]Docker- und containerd-Pfad sind bereits korrekt gesetzt. Nichts zu tun.[/yellow]")
         raise typer.Exit()
         
-    console.print(f"\n[bold yellow]WARNUNG:[/bold yellow] Docker wird gestoppt und alle Container werden kurzzeitig unterbrochen.")
+    console.print(f"\n[bold yellow]WARNUNG:[/bold yellow] Docker und containerd werden gestoppt und alle Container kurzzeitig unterbrochen.")
     if not questionary.confirm("Möchtest du fortfahren?", default=True).ask():
         console.print("[yellow]Vorgang abgebrochen.[/yellow]")
         raise typer.Exit()
         
-    # 3. Docker stoppen
+    # 3. Dienste stoppen
     console.print("[blue]Stoppe Docker Dienste...[/blue]")
     run_command("sudo systemctl stop docker docker.socket containerd", desc="Stoppe Docker und Containerd")
     
     # 4. Daten kopieren
-    console.print(f"[blue]Kopiere Docker Daten von {current_path} nach {new_path}... (Das kann je nach Datenmenge dauern!)[/blue]")
-    run_command(f"sudo mkdir -p {new_path}", desc="Erstelle neues Verzeichnis")
+    console.print(f"[blue]Bereite Zielpfade vor...[/blue]")
+    run_command(f"sudo mkdir -p {quote(new_path)} {quote(new_containerd_path)}", desc="Erstelle Zielverzeichnisse")
     
     run_command("sudo apt-get update && sudo apt-get install -y rsync", desc="Installiere Abhängigkeit: rsync", check=False)
     
-    # WICHTIG: -aP behält Rechte, Time, etc. rsync ist sicherer als cp
-    if not run_command(f"sudo rsync -aP {current_path}/ {new_path}/", desc="Kopiere Dateien via rsync (bitte warten)"):
-        console.print("[bold red]Fehler beim Kopieren der Daten. Starte Docker neu mit altem Pfad...[/bold red]")
-        run_command("sudo systemctl start docker docker.socket containerd", desc="Recovery: Starte Docker")
-        raise typer.Exit(code=1)
+    if not docker_already_target:
+        # WICHTIG: -aHAX behält Rechte, ACLs, xattrs etc. rsync ist sicherer als cp
+        console.print(f"[blue]Kopiere Docker Daten von {current_path} nach {new_path}... (Das kann je nach Datenmenge dauern!)[/blue]")
+        if not run_command(f"sudo rsync -aHAX --numeric-ids {quote(current_path)}/ {quote(new_path)}/", desc="Kopiere Docker-Dateien via rsync (bitte warten)"):
+            console.print("[bold red]Fehler beim Kopieren der Daten. Starte Docker neu mit altem Pfad...[/bold red]")
+            run_command("sudo systemctl start docker docker.socket containerd", desc="Recovery: Starte Docker")
+            raise typer.Exit(code=1)
+    else:
+        console.print("[yellow]Docker data-root ist bereits auf dem Zielpfad, Docker-Daten werden nicht erneut kopiert.[/yellow]")
+
+    if current_containerd_path.rstrip('/') != new_containerd_path.rstrip('/'):
+        console.print(f"[blue]Kopiere containerd Daten von {current_containerd_path} nach {new_containerd_path}...[/blue]")
+        if not run_command(f"sudo rsync -aHAX --numeric-ids {quote(current_containerd_path)}/ {quote(new_containerd_path)}/", desc="Kopiere containerd-Dateien via rsync (bitte warten)"):
+            console.print("[bold red]Fehler beim Kopieren der containerd-Daten. Starte Docker neu mit altem Pfad...[/bold red]")
+            run_command("sudo systemctl start docker docker.socket containerd", desc="Recovery: Starte Docker")
+            raise typer.Exit(code=1)
         
-    # 5. daemon.json anpassen
+    # 5. docker daemon.json anpassen
     console.print("[blue]Passe /etc/docker/daemon.json an...[/blue]")
     daemon_json_path = "/etc/docker/daemon.json"
     
@@ -353,30 +443,76 @@ def docker_storage():
     daemon_data["data-root"] = new_path
     
     try:
-        import tempfile
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tf:
-            json.dump(daemon_data, tf, indent=4)
-            tmp_daemon = tf.name
-            
-        run_command(f"sudo mkdir -p /etc/docker", desc="Stelle sicher, dass /etc/docker existiert")
-        run_command(f"sudo mv {tmp_daemon} {daemon_json_path}", desc="Setze Konfiguration in daemon.json")
+        daemon_content = json.dumps(daemon_data, indent=4) + "\n"
+        run_command("sudo mkdir -p /etc/docker", desc="Stelle sicher, dass /etc/docker existiert")
+        if not write_root_file(daemon_json_path, daemon_content, ".json"):
+            raise RuntimeError("Schreiben von daemon.json fehlgeschlagen")
     except Exception as e:
-        console.print(f"[bold red]Fehler beim Speichern der daemon.json: {e}[/bold red]")
+        console.print(f"[bold red]Fehler beim Speichern von {daemon_json_path}: {e}[/bold red]")
         raise typer.Exit(code=1)
+
+    # 6. containerd config anpassen
+    console.print(f"[blue]Passe {containerd_config_path} an (root -> {new_containerd_path}, state -> /run/containerd)...[/blue]")
+    new_containerd_config = build_containerd_config(containerd_config_text, new_containerd_path)
+    run_command("sudo mkdir -p /etc/containerd", desc="Stelle sicher, dass /etc/containerd existiert")
+    if not write_root_file(containerd_config_path, new_containerd_config, ".toml"):
+        run_command("sudo systemctl start docker docker.socket containerd", desc="Recovery: Starte Docker")
+        raise typer.Exit(code=1)
+
+    # Optional: Sicherstellen, dass der Mount vor den Diensten bereitsteht
+    if questionary.confirm("Soll ein systemd-Override mit RequiresMountsFor für Docker und containerd gesetzt werden?", default=True).ask():
+        override_content = (
+            "[Unit]\n"
+            f"RequiresMountsFor={new_path}\n"
+        )
+        run_command("sudo mkdir -p /etc/systemd/system/docker.service.d /etc/systemd/system/containerd.service.d", desc="Erstelle systemd Override-Verzeichnisse")
+        if not write_root_file("/etc/systemd/system/docker.service.d/dvm-storage.conf", override_content, ".conf"):
+            raise typer.Exit(code=1)
+        if not write_root_file("/etc/systemd/system/containerd.service.d/dvm-storage.conf", override_content, ".conf"):
+            raise typer.Exit(code=1)
+        run_command("sudo systemctl daemon-reload", desc="Lade systemd Konfiguration neu")
         
-    # Optional: Altes Verzeichnis umbenennen als Backup
-    if questionary.confirm(f"Soll das alte Verzeichnis ({current_path}) als Backup behalten werden? (Nein = Löschen)", default=True).ask():
-        run_command(f"sudo mv {current_path} {current_path}.backup", desc="Erstelle Backup des alten Verzeichnisses")
-    else:
-        run_command(f"sudo rm -rf {current_path}", desc="Lösche altes Verzeichnis")
-        
-    # 6. Docker neu starten
+    # 7. Dienste neu starten
     console.print("[blue]Starte Docker Dienste neu...[/blue]")
-    if run_command("sudo systemctl start docker docker.socket containerd", desc="Starte Docker mit neuem Speicherort"):
-        console.print(f"\n[bold green]Docker Speicherort erfolgreich auf {new_path} geändert![/bold green]")
-    else:
+    if not run_command("sudo systemctl start docker docker.socket containerd", desc="Starte Docker mit neuem Speicherort"):
         console.print("[bold red]Kritischer Fehler: Docker konnte nicht neu gestartet werden. Bitte manuell prüfen![/bold red]")
         raise typer.Exit(code=1)
+
+    # 8. Verifizieren
+    docker_root_runtime = "(unbekannt)"
+    try:
+        verify_result = subprocess.run(
+            ['sudo', 'docker', 'info', '-f', '{{.DockerRootDir}}'],
+            capture_output=True, text=True, check=True
+        )
+        docker_root_runtime = verify_result.stdout.strip() or docker_root_runtime
+    except Exception:
+        pass
+
+    console.print(f"[green]Docker Root laut Runtime:[/green] {docker_root_runtime}")
+    console.print(f"[green]containerd Root laut Config:[/green] {new_containerd_path}")
+    run_command(f"sudo mount | grep -F {quote(new_containerd_path)}", desc="Prüfe Overlay-Mounts auf neuen containerd-Pfad", check=False)
+    run_command(f"sudo du -sh {quote(current_containerd_path)}", desc="Größe alter containerd-Pfad", check=False)
+
+    # 9. Alte Pfade erst nach erfolgreicher Umstellung behandeln
+    keep_old = questionary.confirm(
+        f"Sollen alte Pfade als Backup behalten werden? (Docker: {current_path}, containerd: {current_containerd_path})",
+        default=True
+    ).ask()
+
+    old_paths = []
+    if current_path.rstrip('/') != new_path.rstrip('/'):
+        old_paths.append(current_path)
+    if current_containerd_path.rstrip('/') != new_containerd_path.rstrip('/') and current_containerd_path != current_path:
+        old_paths.append(current_containerd_path)
+
+    for old_path in old_paths:
+        if keep_old:
+            run_command(f"sudo mv {quote(old_path)} {quote(old_path + '.backup')}", desc=f"Erstelle Backup von {old_path}", check=False)
+        else:
+            run_command(f"sudo rm -rf {quote(old_path)}", desc=f"Lösche alten Pfad {old_path}", check=False)
+
+    console.print(f"\n[bold green]Docker + containerd Speicherort erfolgreich auf {new_path} umgestellt![/bold green]")
 
 @app.command("docker-clean-backup")
 def docker_clean_backup():

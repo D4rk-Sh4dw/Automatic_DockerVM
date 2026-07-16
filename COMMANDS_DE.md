@@ -259,12 +259,14 @@ Repariert defekte Mounts in der `/etc/fstab`, z.B. wenn sich die UUID einer virt
   3. Aktualisiert `/etc/fstab` und wendet die Mounts sofort an (`mount -a`).
 
 ### `dvm disk docker-storage`
-Ändert den Speicherort der Docker-Daten (data-root).
+Ändert den Speicherort der Docker-Daten **inklusive containerd root**.
 - **Was passiert:**
-  1. Stoppt den Docker-Dienst.
-  2. Kopiert alle bestehenden Docker-Daten per `rsync` an den neuen Speicherort (z.B. auf eine gemountete Festplatte).
-  3. Passt die `/etc/docker/daemon.json` an.
-  4. Startet Docker wieder und benennt das alte Datenverzeichnis als Backup um.
+  1. Stoppt `docker`, `docker.socket` und `containerd`.
+  2. Kopiert bestehende Docker-Daten (`data-root`) **und** containerd-Daten (`root`) per `rsync` an den neuen Speicherort.
+  3. Passt `/etc/docker/daemon.json` (`data-root`) sowie `/etc/containerd/config.toml` (`root` und `state`) an.
+  4. Optional wird ein systemd-Override mit `RequiresMountsFor=<neuer-pfad>` für Docker und containerd erstellt.
+  5. Startet die Dienste neu und führt Verifikationen aus (Runtime-Root, Overlay-Mounts, Altpfad-Größe).
+  6. Erst danach können alte Pfade als Backup behalten oder gelöscht werden.
 
 ### `dvm disk docker-clean-backup`
 Löscht das alte Backup des Docker-Speicherorts, nachdem dieser mit `dvm disk docker-storage` verschoben wurde.
