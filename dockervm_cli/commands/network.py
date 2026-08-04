@@ -1,7 +1,90 @@
 
+import subprocess
+
 import typer
 import questionary
 from dockervm_cli.utils import run_command, console, print_header
+
+
+def _detect_ethernet_interfaces() -> list[str]:
+    """Ermittelt physische Ethernet-Interfaces (ohne lo, docker, veth, br-, virtuelle Bridges)."""
+    try:
+        result = subprocess.run(
+            ["ip", "-o", "link", "show"],
+            capture_output=True, text=True, check=True
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return []
+
+    interfaces: list[str] = []
+    for line in result.stdout.splitlines():
+        # Format: "2: eth0: <BROADCAST,...> mtu ..."
+        parts = line.split(":")
+        if len(parts) < 2:
+            continue
+        name = parts[1].strip().split("@")[0]
+        if not name or name == "lo":
+            continue
+        if name.startswith(("docker", "veth", "br-", "virbr", "tun", "tap", "wg", "bond")):
+            continue
+        interfaces.append(name)
+    return interfaces
+
+
+def _detect_default_interface() -> str | None:
+    """Ermittelt das Interface der Default-Route (aktive Verbindung)."""
+    try:
+        result = subprocess.run(
+            ["ip", "route", "show", "default"],
+            capture_output=True, text=True, check=True
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return None
+
+    for line in result.stdout.splitlines():
+        tokens = line.split()
+        if "dev" in tokens:
+            idx = tokens.index("dev")
+            if idx + 1 < len(tokens):
+                return tokens[idx + 1]
+    return None
+
+
+def _select_interface(prompt: str = "Netzwerk-Interface auswählen:") -> str | None:
+    """Interaktive Auswahl eines Netzwerk-Interfaces. Default-Route steht oben."""
+    available = _detect_ethernet_interfaces()
+    default_iface = _detect_default_interface()
+
+    if available:
+        if default_iface and default_iface in available:
+            available.remove(default_iface)
+            available.insert(0, default_iface)
+
+        choices = [
+            questionary.Choice(
+                f"{iface}" + ("  [aktive Default-Route]" if iface == default_iface else ""),
+                value=iface,
+            )
+            for iface in available
+        ]
+        choices.append(questionary.Choice("Anderen Namen manuell eingeben...", value="__custom__"))
+
+        interface = questionary.select(
+            prompt,
+            choices=choices,
+            default=choices[0],
+        ).ask()
+
+        if interface == "__custom__":
+            interface = questionary.text("Interface-Name:").ask()
+        return interface
+
+    console.print("[yellow]Keine Interfaces automatisch erkannt.[/yellow]")
+    return questionary.text(
+        "Interface-Name (z.B. eth0, ens18, enp0s3):",
+        default=default_iface or "eth0",
+    ).ask()
+
 
 app = typer.Typer(help="Netzwerkeinstellungen konfigurieren.")
 
@@ -12,8 +95,15 @@ def configure_static_ip():
     """
     
     console.print("[bold blue]Konfiguration Statische IP (Netplan)[/bold blue]")
-    
-    # 1. Ask for details
+
+    # 1. Interface auswählen (statt hardcoded eth0)
+    interface = _select_interface()
+
+    if not interface:
+        console.print("[red]Interface muss angegeben werden![/red]")
+        raise typer.Exit(code=1)
+
+    # 2. Ask for details
     ip_address = questionary.text("IP Adresse (z.B. 192.168.178.200/24):").ask()
     gateway = questionary.text("Gateway (z.B. 192.168.178.1):").ask()
     dns = questionary.text("DNS Server (kommagetrennt, z.B. 1.1.1.1,8.8.8.8):").ask()
@@ -25,15 +115,10 @@ def configure_static_ip():
     dns_list = [d.strip() for d in dns.split(",")]
     dns_formatted = str(dns_list).replace("'", '"')
     
-    # 2. Backup existing netplan
+    # 3. Backup existing netplan
     console.print("[blue]Erstelle Backup der bestehenden Netplan Konfiguration...[/blue]")
     run_command("sudo mkdir -p /etc/netplan/backup", desc="Erstelle Backup Verzeichnis")
     run_command("sudo cp /etc/netplan/*.yaml /etc/netplan/backup/", desc="Kopiere YAML Dateien")
-    
-    # 3. Create new config
-    # Note: We hardcode 'eth0' here for simplicity based on the old script, 
-    # but a robust solution would list interfaces.
-    interface = "eth0" 
     
     netplan_content = f"""network:
   version: 2
@@ -78,11 +163,15 @@ def configure_ipvlan():
     """
     
     console.print("[bold blue]IPVLAN Einrichtung[/bold blue]")
-    
+
     subnet = questionary.text("Subnetz (z.B. 192.168.178.0/24):").ask()
     gateway = questionary.text("Gateway (z.B. 192.168.178.1):").ask()
-    parent = questionary.text("Parent Interface (z.B. eth0):", default="eth0").ask()
+    parent = _select_interface("Parent Interface auswählen:")
     net_name = questionary.text("Netzwerkname:", default="ipvlan_network").ask()
+
+    if not parent:
+        console.print("[red]Parent Interface muss angegeben werden![/red]")
+        raise typer.Exit(code=1)
     
     cmd = f"docker network create -d ipvlan --subnet={subnet} --gateway={gateway} -o parent={parent} {net_name}"
     
@@ -99,8 +188,6 @@ def create_network():
     """
     Erstellt ein Docker Netzwerk (für external: true in docker-compose).
     """
-    import subprocess
-    
     console.print("[bold blue]Docker Netzwerk erstellen[/bold blue]")
     
     # Show existing networks
@@ -147,13 +234,23 @@ def create_network():
     if configure_subnet:
         subnet = questionary.text("Subnetz (z.B. 172.20.0.0/16):").ask()
         gateway = questionary.text("Gateway (z.B. 172.20.0.1):").ask()
-    
+
+    # macvlan braucht ein physisches Parent-Interface
+    parent = None
+    if driver == "macvlan":
+        parent = _select_interface("Parent Interface für macvlan:")
+        if not parent:
+            console.print("[red]Parent Interface muss angegeben werden![/red]")
+            raise typer.Exit(code=1)
+
     # Build command
     cmd = f"sudo docker network create -d {driver}"
     if subnet:
         cmd += f" --subnet={subnet}"
     if gateway:
         cmd += f" --gateway={gateway}"
+    if parent:
+        cmd += f" -o parent={parent}"
     cmd += f" {net_name}"
     
     console.print(f"\n[cyan]Befehl:[/cyan] {cmd}")
