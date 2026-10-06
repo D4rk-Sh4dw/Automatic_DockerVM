@@ -14,6 +14,8 @@ Ein modernes Python-basiertes CLI-Tool zur Verwaltung Ihrer Docker-VM, das die a
 ## Installation
 
 ```bash
+sudo -i
+apt install git -y
 git clone https://github.com/D4rk-Sh4dw/Automatic_DockerVM.git
 cd Automatic_DockerVM
 chmod +x setup.sh
